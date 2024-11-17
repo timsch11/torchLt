@@ -63,7 +63,6 @@ float* xavier(int in_features, int out_features, int seed) {
 }
 
 
-
 // FORWARD PASS FUNCTIONS (LAYER)
 
 float* forward_layer(float* weights, float* bias, float* input, int in_features, int out_features) {
