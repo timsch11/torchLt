@@ -4,7 +4,7 @@
 
 // WEIGHT INITIALIZATION FUNCTIONS
 
-__global__ void kaimingHeInit(float* weights, int layer_size, int size, float scaling_factor, int seed) {
+__global__ void cuda_weight_init(float* weights, int layer_size, int size, float scaling_factor, int seed) {
     // declaring random state
     curandState state;
 
@@ -32,7 +32,7 @@ float* weight_init(int in_features, int out_features, float scaling_factor, int 
     cudaMallocManaged(&weights, size * sizeof(float));
 
     // run kernel
-    kaimingHeInit<<<in_features, out_features>>>(weights, out_features, size, scaling_factor, seed);
+    cuda_weight_init<<<in_features, out_features>>>(weights, out_features, size, scaling_factor, seed);
 
     // error handling
     cudaError_t error = cudaGetLastError();
@@ -68,6 +68,7 @@ float* xavier(int in_features, int out_features, int seed) {
 float* forward_layer(float* weights, float* bias, float* input, int in_features, int out_features) {
     // declare output
     float* output;
+    return weights;
 }
 
 
