@@ -2,8 +2,16 @@
 
 class Model {
     private:
-        Layer* layers;
+        Layer layers;
+        int layers_count;
 
     public:
-        void predict(float* input);
+        Model(Layer* layers, int count) : layers(layers), layers_count(count) {
+
+            this->layers_count = 0;
+        }
+        void predict(float* input) {
+            for 
+        }
 };
+
