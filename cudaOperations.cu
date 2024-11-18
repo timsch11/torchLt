@@ -10,13 +10,22 @@ __global__ void initZero(float* memorySection) {
 }
 
 float* zeros(int size) {
-    float* memoryAllocation;
+    // returns a pointer to (first element of) an array (interpretation of dimension is up to the caller) of specified size filled with zeros; array lives in unified memory (on cpu and gpu)
 
-    cudaMallocManaged(&memoryAllocation, size*sizeof(float));
+    // reserve memory
+    float* memoryAllocation;
+    cudaMallocManaged(&memoryAllocation, size * sizeof(float));
 
     // maybe think about block/thread distribution
+    // definitively a TODO (for later)
     initZero<<<1, size>>>(memoryAllocation);
     cudaDeviceSynchronize();
+
+    // check for errors
+    cudaError_t error  = cudaGetLastError();
+    if (error != cudaSuccess) {
+        printf("CUDA error when init with zeros: %s\n", cudaGetErrorString(error));
+    }
 
     return memoryAllocation;
 }
@@ -25,44 +34,108 @@ __global__ void copyValue(float* target, float* valueToCopy, int size) {
     int ind = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (ind < size) {
-        // deepcopy?
         target[ind] = valueToCopy[ind];
     }
 }
 
-float* copyValues(float* valueToCopy, int size) {
+float* copyValuesUnified(float* valueToCopy, int size) {
+    // copies values of desire into unified memory, performs deepcopy
     float* output;
-
     cudaMallocManaged(&output, size * sizeof(float));
 
     int blockSize = 256;
     int blockNum = size / 256;
 
-    copyValue<<<blockNum, blockSize>>>(output, valueToCopy, size);
+    copyValue<<<blockNum + 1, blockSize>>>(output, valueToCopy, size);
+
+    cudaError_t error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        printf("CUDA error while trying to copy values to cuda (unified): %s\n", cudaGetErrorString(error));
+    }
 
     return output;
 }
 
+float* copyValues(float* valueToCopy, int size) {
+    // copies values of desire into device memory, performs deepcopy
+    float* output;
+    cudaMalloc(&output, size * sizeof(float));
+
+    int blockSize = 256;
+    int blockNum = size / 256;
+
+    copyValue<<<blockNum + 1, blockSize>>>(output, valueToCopy, size);
+
+    // do some error checking
+    cudaError_t error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        printf("CUDA error while trying to copy values to cuda: %s\n", cudaGetErrorString(error));
+    }
+
+    return output;
+}
 
 // MATH FUNCTIONS
 
-__global__ void matmulCol(float* mat, float* vec) {
+__global__ void matmulCol(float* mat, float* vec, int blocks) {
     // every block tackles multiplication of a column, with a thread for each column entry
-    mat[blockDim.x * threadIdx.x + blockIdx.x] *= vec[blockIdx.x];
+    mat[blocks * threadIdx.x + blockIdx.x] *= vec[blockIdx.x];
+}
+
+__global__ void matmulAddScaledVectorRow(float* targetMemorySpace, float* matrixToAddUp, int matCols) {
+    // assumes matrix shape and targetMemorySpace (vector) are compatible
+    float sum = 0;
+    for (int i=0; i<matCols; i++) {
+        sum += matrixToAddUp[threadIdx.x * matCols + i];
+    }
+    targetMemorySpace[threadIdx.x] = sum;
 }
 
 float* matvecmul(float* mat, int matRows, int matCols, float* vec, int vecSize) {
-    // mat is used for calculations and result
+    // check for compatibility
     if (matCols != vecSize) {
         throw std::runtime_error("Incompatible shapes");
     }
-    // multiplying, result goes to mat
-    matmulCol<<<matCols, matRows>>>(mat, vec);
+
+    // mulitplication of the respective vectors matrix shape does not change yet
+    // create space for multiplication
+    float* calc = copyValues(mat, matRows * matCols);
+
+    // multiplying, result goes to calc
+    matmulCol<<<matCols, matRows>>>(calc, vec, matCols);
     cudaDeviceSynchronize();
 
-    // adding up
+    // error handling
+    cudaError_t error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        printf("CUDA error after matmulCol (func matvecmul): %s\n", cudaGetErrorString(error));
+        throw std::runtime_error("CUDA error after matmulCol (func matvecmul)");
+    }
 
-    return mat;
+    // adding up the scaled vectors
+    // create space for output
+    float* result = copyValuesUnified(vec, vecSize);
+
+    matmulAddScaledVectorRow<<<1, matRows>>>(result, calc, matCols);
+    cudaDeviceSynchronize();
+
+    // error handling the second
+    error  = cudaGetLastError();
+    if (error != cudaSuccess) {
+        printf("CUDA error when adding up in (func matvecmul): %s\n", cudaGetErrorString(error));
+        throw std::runtime_error("CUDA error after matmulCol (func matvecmul)");
+    }
+
+    // free memory only used for mulitplication
+    cudaFree(calc);
+
+    error  = cudaGetLastError();
+    if (error != cudaSuccess) {
+        printf("CUDA error when freeing memory (func matvecmul): %s\n", cudaGetErrorString(error));
+        throw std::runtime_error("CUDA error after matmulCol (func matvecmul)");
+    }
+
+    return result;
 }
 
 
@@ -134,21 +207,11 @@ float* forward_layer(float* weights, float* bias, float* input, int inputSize, i
 
     int size = in_features * out_features;
 
-    // reserve memory for calculations, init with weights
-    float* calc = copyValues(weights, size);
-
-    // reserve memory for output, init with zeros
-    float* output = zeros(out_features);
-
-    // add try-catch for matvecmul !!!
-    // matvecmul uses mat for calculation space
-    try
-    {
+    try {
         // check again
-        matvecmul(calc, out_features, in_features, input, inputSize);
+        float* output = matvecmul(weights, out_features, in_features, input, inputSize);
     }
-    catch(const std::runtime_error& e)
-    {
+    catch(const std::runtime_error& e) {
         std::cerr << e.what() << '\n';
     }
     
@@ -158,24 +221,32 @@ float* forward_layer(float* weights, float* bias, float* input, int inputSize, i
 
 
 int main() {
-    int in_features = 4;
-    int out_features = 4;
+    float* weights = zeros(15);
 
-    float* weights = zeros(6);
+    float* inp = zeros(5);
 
-    float* inp = zeros(2);
+    cudaError_t error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        printf("CUDA error while zero initialization: %s\n", cudaGetErrorString(error));
+    }
 
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 15; i++) {
         std::cout << weights[i] << std::endl;
     }
 
-    matvecmul(weights, 3, 2, inp, 2);
+    std::cout << std::endl;
 
-    for (int i = 0; i < 6; i++) {
-        std::cout << weights[i] << std::endl;
+    float* weightsModified = matvecmul(weights, 3, 5, inp, 5);
+
+    for (int i = 0; i < 3; i++) {
+        std::cout << weightsModified[i] << std::endl;
     }
+
+    cudaFree(weights);
+    cudaFree(weightsModified);
+    cudaFree(inp);
 
     return 0;
 
-    // TODO: finc matrix mul bug and change zeros back to actually zero
+    // TODO: find matrix mul bug and change zeros back to actually zero
 }
