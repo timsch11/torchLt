@@ -6,7 +6,7 @@
 // MEMORY INITIALIZATION FUNCTIONS
 
 __global__ void initZero(float* memorySection) {
-    memorySection[blockIdx.x * blockDim.x + threadIdx.x] = -1;
+    memorySection[blockIdx.x * blockDim.x + threadIdx.x] = 0;
 }
 
 float* zeros(int size) {
@@ -74,6 +74,7 @@ float* copyValues(float* valueToCopy, int size) {
 
     return output;
 }
+
 
 // MATH FUNCTIONS
 
@@ -156,7 +157,6 @@ __global__ void cuda_weight_init(float* weights, int layer_size, int size, float
     }
 }
 
-
 float* weight_init(int in_features, int out_features, float scaling_factor, int seed) {
 
     // declare weights
@@ -183,7 +183,6 @@ float* weight_init(int in_features, int out_features, float scaling_factor, int 
     // return pointer to shared memory (between cpu AND gpu)
     return weights;
 }
-
 
 float* kaiming_he(int in_features, int out_features, int seed) {
     // set scaling factor for kaiming he init
@@ -247,6 +246,4 @@ int main() {
     cudaFree(inp);
 
     return 0;
-
-    // TODO: find matrix mul bug and change zeros back to actually zero
 }
