@@ -1,4 +1,5 @@
 #include "Layer.h"
+#include "cudaOperations.cu"
 
 class Layer {
     private:
@@ -10,13 +11,10 @@ class Layer {
         Layer(int in_features, int out_features) {
             this->in_features = in_features;
             this->out_features = out_features;
+            this->last_input = reserveMemoryOnDevice(in_features);
         }
 
-        void forward(float* input, float* output) {
+        virtual float* forward(float* input) = 0;
 
-        }
-
-        void backward(float* input, float* output) {
-
-        }
+        virtual float* backward(float* dloss_dlayer) = 0;
 };
