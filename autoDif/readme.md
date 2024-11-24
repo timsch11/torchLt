@@ -1,0 +1,1 @@
+This package provides all packages needed for automatic differentiation. Function acts as a base class for all kinds of chained operations. Furthermore, Operation is a childclass of Function that takes two inputs (i.e matrix vector mul (->linear function))
