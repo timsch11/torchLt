@@ -1,3 +1,5 @@
+#include "../autoDif/Function.h"
+
 class Tensor {
     private:
         float* d_value;
@@ -8,6 +10,8 @@ class Tensor {
 
         bool track_gradient;
 
+        Function* precedingFunction;
+
     public:
         Tensor(float* _value, unsigned int _shape_x, unsigned int _shape_y, bool _track_gradient);
 
@@ -17,6 +21,7 @@ class Tensor {
         unsigned int getShapeX();
         unsigned int getShapeY();
         bool getTrackGradient();
+        Funtion* getPrecedingFunction();
 
         // shape comparison
         bool sameShape(Tensor other);

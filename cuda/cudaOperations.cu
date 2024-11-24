@@ -94,12 +94,12 @@ float* copyValues(float* valueToCopy, int size) {
     return output;
 }
 
-float* reserveMemoryOnDevice(int size) {
+float* reserveMemoryOnDevice(unsigned int size) {
     // declare pointer
     float* memoryAlloc;
 
-    // reserve actual space in memory
-    CHECK_CUDA_ERROR(cudaMallocManaged(&memoryAlloc, size));
+    // reserve actual space in memory, add some padding for thread efficiency
+    CHECK_CUDA_ERROR(cudaMalloc(&memoryAlloc, size + (size / BLOCK_SIZE)));
 
     // return pointer 
     return memoryAlloc;

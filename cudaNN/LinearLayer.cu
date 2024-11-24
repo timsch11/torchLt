@@ -1,5 +1,5 @@
 #include "LinearLayer.h"
-#include "cudaOperations.cu"
+#include "../cuda/cudaOperations.cu"
 #include <cstdlib>
 
 // define seed 

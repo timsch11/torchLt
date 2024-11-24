@@ -1,5 +1,6 @@
 #include "Tensor.h"
-#include "cudaOperations.cu"
+#include "../cuda/cudaOperations.cu"
+#include "../autoDif/Function.h"
 
 
 // only covers vectors and matrices
@@ -17,6 +18,8 @@ class Tensor {
 
         bool track_gradient;
 
+        Function* precedingFunction;
+
     public:
 
         Tensor(float* _value, unsigned int _shape_x, unsigned int _shape_y, bool _track_gradient) {
@@ -31,8 +34,9 @@ class Tensor {
             this->shape_x = _shape_x;
             this->shape_y = _shape_y;
             this->track_gradient = _track_gradient;
+            this->precedingFunction = nullptr;
             if (track_gradient) {
-                cudaMalloc(&d_gradient, _shape_x * _shape_y * sizeof(float));
+                d_gradient = reserveMemoryOnDevice(_shape_x * _shape_y);
             }
         }
 
@@ -56,6 +60,10 @@ class Tensor {
 
         bool getTrackGradient() {
             return this->track_gradient;
+        }
+
+        Funtion* getPrecedingFunction() {
+            return this->precedingFunction;
         }
 
         bool sameShape(Tensor other) {

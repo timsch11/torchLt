@@ -1,5 +1,5 @@
 #include "Layer.h"
-#include "cudaOperations.cu"
+#include "../cuda/cudaOperations.cu"
 
 class Layer {
     private:
