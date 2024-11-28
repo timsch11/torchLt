@@ -1,4 +1,7 @@
-#include "../autoDif/Function.h"
+#pragma once
+
+// Forward declaration
+class Function;
 
 class Tensor {
     private:
@@ -13,7 +16,7 @@ class Tensor {
         Function* precedingFunction;
 
     public:
-        Tensor(float* _value, unsigned int _shape_x, unsigned int _shape_y, bool _track_gradient);
+        Tensor(float* _value, unsigned int _shape_x, unsigned int _shape_y, bool _track_gradient, Function* _precedingFunction);
 
         // getter 
         float* getValue();
@@ -21,7 +24,7 @@ class Tensor {
         unsigned int getShapeX();
         unsigned int getShapeY();
         bool getTrackGradient();
-        Funtion* getPrecedingFunction();
+        Function* getPrecedingFunction();
 
         // shape comparison
         bool sameShape(Tensor other);
@@ -29,6 +32,7 @@ class Tensor {
 
         // operator overloading
         Tensor* operator+(Tensor &other);
+        Tensor* operator-(Tensor &other);
         Tensor* operator*(Tensor &other);
         Tensor* operator%(Tensor &other);
 };

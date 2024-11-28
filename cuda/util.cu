@@ -1,6 +1,5 @@
 #include <iostream>
 #include <stdexcept>
-#include "Tensor.h"
 
 
 // set preferred block size

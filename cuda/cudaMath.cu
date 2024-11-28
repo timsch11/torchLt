@@ -2,7 +2,6 @@
 #include <stdexcept>
 #include "util.cu"
 #include "curand_kernel.h"
-#include "Tensor.h"
 
 
 // MATH FUNCTIONS
@@ -102,7 +101,7 @@ cudaError_t vecadd(float* vector1, unsigned int vectorSize1, float* vector2, uns
     
     return cudaSuccess;
 }
-
+/*
 __global__ hadamard_kernel(float* targetMemorySpace, float* tensor1, float* tensor2) {
     targetMemorySpace[blockIdx.x * blockDim.x * threadIdx.x] = 
 }
@@ -119,7 +118,7 @@ cudaError_t hadamard(float* targetMemorySpace, float* tensor1, float* tensor2, s
 
     return cudaSuccess;
 }
-
+*/
 
 // WEIGHT INITIALIZATION FUNCTIONS
 
@@ -138,8 +137,8 @@ __global__ void cuda_weight_init(float* weights, unsigned int size, float scalin
     weights[ind] = curand_normal(&state) * sqrtf(scalingFactor);
 }
 
-// returns a pointer to a weight matrix of specified shape with values sampled from a normal distribution N~(0, sqrt(<scalingFactor>))
-float* weight_init(float* targetMemorySpace, unsigned int in_features, unsigned int out_features, float scaling_factor, int seed) {
+// fills matrix of specified shape with values sampled from a random normal distribution N~(0, sqrt(<scalingFactor>))
+void weight_init(float* targetMemorySpace, unsigned int in_features, unsigned int out_features, float scaling_factor, int seed) {
 
     // set size, add some padding to ensure that kernel runs efficiently but also does not override other memory cells
     unsigned int size = in_features * out_features;
@@ -151,10 +150,8 @@ float* weight_init(float* targetMemorySpace, unsigned int in_features, unsigned 
 
     // Wait for GPU to finish before accessing on host
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
-    // return pointer to shared memory (between cpu AND gpu)
-    return weights;
 }
+
 
 /*
 int main() {

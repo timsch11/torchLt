@@ -1,53 +1,50 @@
-#include "cudaMath.cu"
 #include "util.cu"
 
 
 // MEMORY INITIALIZATION FUNCTIONS
 
-__global__ void initZero(float* memorySection) {
-    memorySection[blockIdx.x * blockDim.x + threadIdx.x] = 0;
+__global__ void initZero(float* d_memorySection) {
+    d_memorySection[blockIdx.x * blockDim.x + threadIdx.x] = 0;
 }
 
-float* zeros(int size) {
+float* zeros(unsigned int size) {
     // returns a pointer to (first element of) an array (interpretation of dimension is up to the caller) of specified size filled with zeros; array lives in unified memory (on cpu and gpu)
 
     // calc block/thread allocation scheme
     std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
     // reserve memory
-    float* memoryAllocation;
-    CHECK_CUDA_ERROR(cudaMalloc(&memoryAllocation, blockThreadAllocation.first * blockThreadAllocation.second * sizeof(float)));
+    float* d_memoryAllocation;
+    CHECK_CUDA_ERROR(cudaMalloc(&d_memoryAllocation, blockThreadAllocation.first * blockThreadAllocation.second * sizeof(float)));
 
     // launch kernel
-    initZero<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(memoryAllocation);
+    initZero<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_memoryAllocation);
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    return memoryAllocation;
+    return d_memoryAllocation;
 }
 
-__global__ void copyValue(float* target, float* valueToCopy, int size) {
+__global__ void copyValue(float* d_target, float* d_valueToCopy, unsigned int size) {
     int ind = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (ind < size) {
-        target[ind] = valueToCopy[ind];
+        d_target[ind] = d_valueToCopy[ind];
     }
 }
 
-float* copyValuesUnified(float* valueToCopy, int size) {
-    // copies values of desire into unified memory, performs deepcopy
-    float* output;
-    cudaMallocManaged(&output, size * sizeof(float));
 
-    int blockNum = size / 256;
+// think about neccessety !!!!
+// copies values of desire into unified memory, performs deepcopy
+float* copyValuesUnified(float* d_valueToCopy, unsigned int size) {
+    float* d_output;
+    std::pair<unsigned int, unsigned int> blocksThread = computeBlockThreadAllocation(size);
+    cudaMallocManaged(&d_output, blocksThread.first * blocksThread.second * sizeof(float));
 
-    copyValue<<<blockNum + 1, BLOCK_SIZE>>>(output, valueToCopy, size);
+    copyValue<<<blocksThread.first, blocksThread.second>>>(d_output, d_valueToCopy, size);
 
-    cudaError_t error = cudaGetLastError();
-    if (error != cudaSuccess) {
-        printf("CUDA error while trying to copy values to cuda (unified): %s\n", cudaGetErrorString(error));
-    }
+    CHECK_CUDA_ERROR(cudaGetLastError());
 
-    return output;
+    return d_output;
 }
 
 float* copyValues(float* valueToCopy, int size) {
@@ -73,7 +70,7 @@ float* reserveMemoryOnDevice(unsigned int size) {
     float* memoryAlloc;
 
     // reserve actual space in memory, add some padding for thread efficiency
-    CHECK_CUDA_ERROR(cudaMalloc(&memoryAlloc, size + (size / BLOCK_SIZE)));
+    CHECK_CUDA_ERROR(cudaMalloc(&memoryAlloc, size + (size % BLOCK_SIZE)));
 
     // return pointer 
     return memoryAlloc;
