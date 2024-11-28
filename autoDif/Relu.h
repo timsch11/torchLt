@@ -6,5 +6,6 @@
 
 class Relu: public Function {
     public:
+        Tensor* forward();
         void backward(float* gradient, std::pair<unsigned int, unsigned int> gradientShape);
 };

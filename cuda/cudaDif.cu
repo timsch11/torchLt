@@ -2,7 +2,7 @@
 #include "cudaOperations.cu"
 
 
-__global__ void relu_grad(float* vector, float* targetMemorySpace) {
+__global__ void reluDif_kernel(float* vector, float* targetMemorySpace) {
     // todo
 }
 
