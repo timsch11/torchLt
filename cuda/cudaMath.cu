@@ -1,7 +1,6 @@
 #include <iostream>
 #include <stdexcept>
 #include "util.cu"
-#include "curand_kernel.h"
 
 
 // MATH FUNCTIONS
@@ -20,7 +19,7 @@ __global__ void matmulAddScaledVectorRow(float* targetMemorySpace, float* matrix
     targetMemorySpace[threadIdx.x] = sum;
 }
 
-float* matvecmul(float* mat, int matRows, int matCols, float* vec, int vecSize, float* targetMemorySpace) {
+/*float* matvecmul(float* mat, int matRows, int matCols, float* vec, int vecSize, float* targetMemorySpace) {
     // check for compatibility
     if (matCols != vecSize) {
         throw std::runtime_error("Incompatible shapes");
@@ -78,16 +77,17 @@ float* matvecmul(float* mat, int matRows, int matCols, float* vec, int vecSize, 
     }
 
     return targetMemorySpace;
-}
+}*/
 
-// adds one column each
-__global__ void addVecEntries(float* vec1, float* vec2, float* targetMemorySpace) {
+// adds one entry each
+__global__ void addVecEntries(float* d_targetMemorySpace, float* d_vec1, float* d_vec2) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    targetMemorySpace[idx] = vec1[idx] + vec2[idx];
+    d_targetMemorySpace[idx] = d_vec1[idx] + d_vec2[idx];
 }
 
 // adds the values of two vectors and stores the result in <targetMemorySpace>, Note: for efficiency reasons size of targetMemorySpace must be rounded up to a multiple of blocksize
-cudaError_t vecadd(float* vector1, unsigned int vectorSize1, float* vector2, unsigned int vectorSize2, float* targetMemorySpace) {
+cudaError_t vecadd(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2) {
+
     // check for vector compatibility
     if (vectorSize1 != vectorSize2) {
         printf("vectors to be added have different shapes\n");
@@ -96,102 +96,136 @@ cudaError_t vecadd(float* vector1, unsigned int vectorSize1, float* vector2, uns
 
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(vectorSize1);
     
-    addVecEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(vector1, vector2, targetMemorySpace);
+    addVecEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector1, d_vector2);
     CHECK_CUDA_ERROR(cudaGetLastError());
     
     return cudaSuccess;
 }
-/*
-__global__ hadamard_kernel(float* targetMemorySpace, float* tensor1, float* tensor2) {
-    targetMemorySpace[blockIdx.x * blockDim.x * threadIdx.x] = 
+
+// adds one column each
+__global__ void subtractVecEntries(float* d_targetMemorySpace, float* d_vec1, float* d_vec2) {
+    int ind = blockIdx.x * blockDim.x + threadIdx.x;
+    d_targetMemorySpace[ind] = d_vec1[ind] - d_vec2[ind];
 }
 
-cudaError_t hadamard(float* targetMemorySpace, float* tensor1, float* tensor2, std::pair<unsigned int, unsigned int> shape) {
-    if (targetMemorySpace == nullptr) {
-        // TODO
+// subtracts the values of two vectors and stores the result in <targetMemorySpace>, Note: for efficiency reasons size of targetMemorySpace must be rounded up to a multiple of blocksize
+cudaError_t vecsub(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2) {
+
+    // check for vector compatibility
+    if (vectorSize1 != vectorSize2) {
+        printf("vectors to be subtracted have different shapes\n");
+        return cudaErrorInvalidValue;
     }
+
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(vectorSize1);
+    
+    subtractVecEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector1, d_vector2);
+    CHECK_CUDA_ERROR(cudaGetLastError());
+    
+    return cudaSuccess;
+}
+
+__global__ void scaleEntries(float* d_targetMemorySpace, float* d_tensor, float scalar) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    d_targetMemorySpace[idx] = d_tensor[idx] * scalar;
+}
+
+// performs scalar multiplication on the elements of an arbitrarily shaped tensor
+cudaError_t scaletensor(float* d_targetMemorySpace, float* d_tensor, unsigned int tensorSize, float scalar) {
+
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(tensorSize);
+    
+    scaleEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor, scalar);
+    CHECK_CUDA_ERROR(cudaGetLastError());
+    
+    return cudaSuccess;
+}
+
+__global__ void hadamard_kernel(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2) {
+    int ind = blockIdx.x * blockDim.x + threadIdx.x;
+    d_targetMemorySpace[ind] = d_tensor1[ind] * d_tensor2[ind];
+}
+
+// computes the hadamard product between tensor1 and tensor2 and stores the result in targetMemorySpace, the tensor shapes must obviously match
+cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2, std::pair<unsigned int, unsigned int> shape) {
+
+    // calculate num of fields
+    unsigned int size = (shape.second == 0) ? shape.first : shape.first * shape.second;
 
     // calculate #Block and #Thread
-    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(vectorSize1);
-    hadamard_kernel<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(targetMemorySpace, tensor1, tensor2);
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
+    
+    // let kernel do its work
+    hadamard_kernel<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor1, d_tensor2);
+
+    // error checking
     CHECK_CUDA_ERROR(cudaGetLastError());
 
     return cudaSuccess;
 }
-*/
 
-// WEIGHT INITIALIZATION FUNCTIONS
-
-
-__global__ void cuda_weight_init(float* weights, unsigned int size, float scalingFactor, int seed) {
-    // declaring random state
-    curandState state;
-
-    // set index
-    int ind = blockDim.x * blockIdx.x + threadIdx.x;
-
-    // init curand
-    curand_init(seed + ind, blockIdx.x, 0, &state);
-
-    // set weight
-    weights[ind] = curand_normal(&state) * sqrtf(scalingFactor);
+__global__ void initZero(float* d_memorySection) {
+    d_memorySection[blockIdx.x * blockDim.x + threadIdx.x] = -2.0f;
 }
 
-// fills matrix of specified shape with values sampled from a random normal distribution N~(0, sqrt(<scalingFactor>))
-void weight_init(float* targetMemorySpace, unsigned int in_features, unsigned int out_features, float scaling_factor, int seed) {
+// init array on device with zeros
+float* zeros(unsigned int size) {
+    // returns a pointer to (first element of) an array (interpretation of dimension is up to the caller) of specified size filled with zeros; array lives in unified memory (on cpu and gpu)
 
-    // set size, add some padding to ensure that kernel runs efficiently but also does not override other memory cells
-    unsigned int size = in_features * out_features;
-    size += size % BLOCK_SIZE;
+    // calc block/thread allocation scheme
+    std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
-    // run kernel
-    cuda_weight_init<<<in_features, out_features>>>(targetMemorySpace, size, scaling_factor, seed);
+    // reserve memory
+    float* d_memoryAllocation;
+    CHECK_CUDA_ERROR(cudaMalloc(&d_memoryAllocation, blockThreadAllocation.first * blockThreadAllocation.second * sizeof(float)));
+
+    // launch kernel
+    initZero<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_memoryAllocation);
     CHECK_CUDA_ERROR(cudaGetLastError());
 
-    // Wait for GPU to finish before accessing on host
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    return d_memoryAllocation;
 }
 
 
-/*
 int main() {
-    float* bias = zeros(3);
-    float* inp = zeros(3);
+    // Allocate host memory for results
+float* h_bias = new float[256];  // Host memory
 
-    Tensor t1 = Tensor(bias, 3, 0, false);
-    Tensor t2 = Tensor(inp, 3, 0, false);
+// Device allocation
+float* d_bias = zeros(5);
+// cudaMalloc(&d_bias, 5 * sizeof(float));
 
-    Tensor* t3 = t1 + t2;
+// Initialize with zeros
 
-    std::cout << t3->getValue();
-    std::cout << t1.getValue();
-    std::cout << t2.getValue();
 
-    return 0;
-    /*float* weights = zeros(1048576);
+float* d_bias2 = zeros(5);
 
-    float* bias = zeros(1024);
+// Initialize with zeros
+// weight_init(d_bias, 5, 1, 10.75f, 1234567);
 
-    float* inp = zeros(1024);
+vecsub(d_bias, d_bias, 5, d_bias2, 5);
 
-    cudaError_t error = cudaGetLastError();
-    if (error != cudaSuccess) {
-        printf("CUDA error while zero initialization: %s\n", cudaGetErrorString(error));
-    }
+// Copy from device (zero_init) to device (d_bias)
+// cudaMemcpy(d_bias, zero_init, 5 * sizeof(float), cudaMemcpyDeviceToDevice);
 
-    std::cout << std::endl;
-    
-    float* weightsModified = forward_layer(weights, bias, inp, 1024, 1024, 1024); // (weights, 3, 5, inp, 5);
+// Copy from device to host for printing
+cudaMemcpy(h_bias, d_bias, 256 * sizeof(float), cudaMemcpyDeviceToHost);
+cudaDeviceSynchronize();
 
-    /*for (int i = 0; i < 3; i++) {
-        std::cout << weightsModified[i] << std::endl;
-    }
-    
-
-    cudaFree(weights);
-    cudaFree(weightsModified);
-    cudaFree(inp);
-
-    return 0;
+// Check for errors
+cudaError_t error = cudaGetLastError();
+if (error != cudaSuccess) {
+    printf("CUDA error: %s\n", cudaGetErrorString(error));
+    throw std::runtime_error("CUDA error");
 }
-*/ 
+
+// Print values from host memory
+for (int i = 0; i < 256; i++) {
+    std::cout << h_bias[i] << " ";
+}
+
+// Cleanup
+delete[] h_bias;
+cudaFree(d_bias);
+cudaFree(d_bias2);
+}
