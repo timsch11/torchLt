@@ -19,7 +19,7 @@ cudaError_t reluGrad(float* targetMemorySpace, float* vector, unsigned int size)
 }
 
 
-int main() {
+/*int main() {
     float h_bias[3] = {1.0f, -2.0f, 3.0f};
     float *bias;
     cudaMalloc(&bias, 3 * sizeof(float));
@@ -32,4 +32,4 @@ int main() {
     for (int i=0; i<3; i++) {
         std::cout << h_bias[i] << " ";
     }
-}
+}*/

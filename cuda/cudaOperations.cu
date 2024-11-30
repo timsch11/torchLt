@@ -1,6 +1,31 @@
 #include <iostream>
 #include <stdexcept>
-#include "util.cu"
+#include "curand_kernel.h"
+// #include "util.cu"
+
+
+// set preferred block size
+#define BLOCK_SIZE 256
+
+
+std::pair<unsigned int, unsigned int> computeBlockThreadAllocation(unsigned int size) {
+    unsigned int blockNum = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    unsigned int threadNum = BLOCK_SIZE;
+    return {blockNum, threadNum};
+}
+
+
+// error checking
+#define CHECK_CUDA_ERROR(val) check((val), #val, __FILE__, __LINE__)
+
+
+template <typename T>
+void check(T err, const char* const func, const char* const file, const int line) {
+    if (err != cudaSuccess) {
+        fprintf(stderr, "CUDA error at %s:%d code=%d(%s) \"%s\" \n", file, line, static_cast<unsigned int>(err), cudaGetErrorString(err), func);
+        exit(EXIT_FAILURE);
+    }
+}
 
 
 // MATH FUNCTIONS
@@ -18,6 +43,8 @@ __global__ void matmulAddScaledVectorRow(float* targetMemorySpace, float* matrix
     }
     targetMemorySpace[threadIdx.x] = sum;
 }
+
+// ADD NEW VECTOR SHAPE CONVENTION!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 /*float* matvecmul(float* mat, int matRows, int matCols, float* vec, int vecSize, float* targetMemorySpace) {
     // check for compatibility
@@ -164,8 +191,11 @@ cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tens
     return cudaSuccess;
 }
 
+
+// MEMORY INITIALIZATION FUNCTIONS
+
 __global__ void initZero(float* d_memorySection) {
-    d_memorySection[blockIdx.x * blockDim.x + threadIdx.x] = -2.0f;
+    d_memorySection[blockIdx.x * blockDim.x + threadIdx.x] = 2.5f;
 }
 
 // init array on device with zeros
@@ -186,8 +216,67 @@ float* zeros(unsigned int size) {
     return d_memoryAllocation;
 }
 
+// allocates memory for <size> many floats on device (plus padding for effient block sizes), returns pointer
+float* reserveMemoryOnDevice(unsigned int size) {
+    // declare pointer
+    float* memoryAlloc;
 
-int main() {
+    // reserve actual space in memory, add some padding for thread efficiency
+    CHECK_CUDA_ERROR(cudaMalloc(&memoryAlloc, (size + (size % BLOCK_SIZE)) * sizeof(float)));
+
+    // return pointer 
+    return memoryAlloc;
+}
+
+// WEIGHT INITIALIZATION FUNCTIONS
+
+
+__global__ void cuda_weight_init(float* weights, unsigned int size, float scalingFactor, int seed) {
+    // declaring random state
+    curandState state;
+
+    // set index
+    int ind = blockDim.x * blockIdx.x + threadIdx.x;
+
+    // init curand
+    curand_init(seed + ind, blockIdx.x, 0, &state);
+
+    // set weight
+    weights[ind] = curand_normal(&state) * sqrtf(scalingFactor);
+}
+
+// fills matrix of specified shape with values sampled from a random normal distribution N~(0, sqrt(<scalingFactor>))
+void weight_init(float* targetMemorySpace, unsigned int in_features, unsigned int out_features, float scaling_factor, int seed) {
+
+    // set size, add some padding to ensure that kernel runs efficiently but also does not override other memory cells
+    unsigned int size = in_features * out_features;
+    size += size % BLOCK_SIZE;
+
+    // run kernel
+    cuda_weight_init<<<in_features, out_features>>>(targetMemorySpace, size, scaling_factor, seed);
+    CHECK_CUDA_ERROR(cudaGetLastError());
+
+    // Wait for GPU to finish before accessing on host
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+}
+
+__global__ void reluGrad_kernel(float* targetMemorySpace, float* vector) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (vector[i] > 0) {
+        targetMemorySpace[i] = 1;
+    } else {
+        targetMemorySpace[i] = 0;
+    }
+}
+
+cudaError_t reluGrad(float* targetMemorySpace, float* vector, unsigned int size) {
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
+    reluGrad_kernel<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(targetMemorySpace, vector);
+    CHECK_CUDA_ERROR(cudaGetLastError());
+    return cudaSuccess;
+}
+
+/*int main() {
     // Allocate host memory for results
 float* h_bias = new float[256];  // Host memory
 
@@ -228,4 +317,4 @@ for (int i = 0; i < 256; i++) {
 delete[] h_bias;
 cudaFree(d_bias);
 cudaFree(d_bias2);
-}
+}*/

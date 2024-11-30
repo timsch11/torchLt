@@ -1,5 +1,6 @@
 #include <iostream>
 #include <stdexcept>
+
 #pragma once
 #include "../cuda/Tensor.h"
 

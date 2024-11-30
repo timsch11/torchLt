@@ -1,6 +1,7 @@
-#include "util.cu"
 #include "curand_kernel.h"
-
+#include "cudaMem.h"
+#include "util.h"
+#include <cuda_runtime.h>
 
 // MEMORY INITIALIZATION FUNCTIONS
 
@@ -26,7 +27,7 @@ float* zeros(unsigned int size) {
     return d_memoryAllocation;
 }
 
-// allocates memory of 
+// allocates memory for <size> many floats on device (plus padding for effient block sizes), returns pointer
 float* reserveMemoryOnDevice(unsigned int size) {
     // declare pointer
     float* memoryAlloc;
@@ -71,7 +72,7 @@ void weight_init(float* targetMemorySpace, unsigned int in_features, unsigned in
 }
 
 
-int main() {
+/*int main() {
     // Allocate host memory for results
 float* h_bias = new float[5];  // Host memory
 
@@ -104,4 +105,4 @@ for (int i = 0; i < 5; i++) {
 // Cleanup
 delete[] h_bias;
 cudaFree(d_bias);
-}
+}*/

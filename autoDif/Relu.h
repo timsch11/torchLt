@@ -1,7 +1,6 @@
-#include <iostream>
-#include <stdexcept>
-#include "Function.h"
+#pragma once
 #include "../cuda/Tensor.h"
+#include "Function.h"
 
 
 class Relu: public Function {
