@@ -22,7 +22,7 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
     this->leaf = true;
 
     if (track_gradient) {
-        // d_gradient = reserveMemoryOnDevice(_shape.first * _shape.second);
+        d_gradient = reserveMemoryOnDevice(_shape.first * _shape.second);
     }
 }
 
@@ -64,6 +64,11 @@ std::pair<unsigned int, unsigned int> Tensor::getShape() {
     return this->shape;
 }
 
+// returns number of entries of this tensor (product of shapes with respect to each dimension)
+unsigned int Tensor::getSize() {
+    return this->getShape().first * this->getShape().second;
+}
+
 bool Tensor::getTrackGradient() {
     return this->track_gradient;
 }
@@ -92,15 +97,13 @@ bool Tensor::isGradientSet() {
     return this->gradientSet;
 }
 
-void Tensor::setGradient(float* _d_grad) {
-    this->d_gradient = _d_grad;
-    this->gradientSet = true;
+void Tensor::changeGradientSet(bool _gradientSet) {
+    this->gradientSet = _gradientSet;
 }
 
 void Tensor::backward() {
     if (this->getTrackGradient()) {
-        this->gradFunction(this->getArg1());
-        std::cout << "here";
+        this->gradFunction(this);
     }
 }
 
@@ -114,31 +117,30 @@ bool Tensor::matVecMulCompatible(Tensor other) {
     return (this->getShapeY() == other.getShapeX()) && (other.getShapeY() == 1);
 }
 
-// operator overloading, Note: this class is specifically optimized for neural networks running on the gpu, therefore result of operation is stored in second tensor
-// => a + b updates value of b and returns pointer to tensor b
+static void additionGradient(Tensor* currentTensor) {
 
-/*Tensor* Tensor::operator+(Tensor &other) {
-    // adds tensor values up and stores result in new Tensor, returns pointer to Tensor that holds result of addition if shapes match, otherwise prints error message and returns nullpointer
-    // check if shapes match
-    if (this->sameShape(other) && this->getShapeY() == 1) {
-        CHECK_CUDA_ERROR(vecadd(this->getValue(), this->getShapeX(), other.getValue(), other.getShapeX(), other.getValue()));
-        CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-        return &other;
-    }
-    // error handling if shapes do not match
-    printf("Error: Tensors must have same shape and be vectors (shape_y = 1)\n");
-    return nullptr;
+}
+
+// adds tensor values up and stores result in new Tensor, returns pointer to Tensor that holds result of addition if shapes match, otherwise prints error message and returns nullpointer
+Tensor* Tensor::operator+(Tensor &other) {
+    float* d_result = vecaddAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
+    return new Tensor(d_result, this->getShape(), true, additionGradient, this, this->getShape(), &other, other.getShape());
+}
+
+static void subtractionGradient(Tensor* currentTensor) {
+
 }
 
 Tensor* Tensor::operator-(Tensor &other) {
-    return nullptr;
+    float* d_result = vecsubAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
+    return new Tensor(d_result, this->getShape(), true, subtractionGradient, this, this->getShape(), &other, other.getShape());
 }
 
 Tensor* Tensor::operator*(Tensor &other) {
     // Remark: only supports Matrix-Vector multiplication yet
     // Matrix-Vector multiplication
     if (matVecMulCompatible(other)) {
-            
+        
     }
     return nullptr;
 }
@@ -146,13 +148,15 @@ Tensor* Tensor::operator*(Tensor &other) {
 Tensor* Tensor::operator%(Tensor &other) {
     // performs hadamard product
     return nullptr;
-}*/
+}
 
 // activation functions
 
-static void reluGradient(Tensor* t) {
-    std::pair<unsigned int, unsigned int> shape = t->getShape();
-    reluGrad(t->getGradient(), t->getValue(), shape.first * shape.second);
+static void reluGradient(Tensor* currentTensor) {
+    Tensor* tensorGrad = currentTensor->getArg1();
+    std::pair<unsigned int, unsigned int> shape = tensorGrad->getShape();
+    reluGrad(tensorGrad->getGradient(), tensorGrad->getValue(), shape.first * shape.second);
+    tensorGrad->changeGradientSet(true);
 }
 
 Tensor* Tensor::relu() {
@@ -165,10 +169,12 @@ Tensor* Tensor::relu() {
 int main() {
     float* mem = zeros(5);
     Tensor* t1 = new Tensor(mem, {5, 1}, true);
-    Tensor* t2 = t1->relu();
-    t2->backward();
+    float* mem2 = zeros(5);
+    Tensor* t2 = new Tensor(mem2, {5, 1}, true);
+    Tensor* t3 = *t1 - *t2;
+    // t2->backward();
     float host_result[5];
-    cudaMemcpy(host_result, t1->getGradient(), 5 * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(host_result, t3->getValue(), 5 * sizeof(float), cudaMemcpyDeviceToHost);
 
     for (int i=0; i<5; i++) {
         std::cout << host_result[i];

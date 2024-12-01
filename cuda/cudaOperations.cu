@@ -147,6 +147,7 @@ cudaError_t vecsub(float* d_targetMemorySpace, float* d_vector1, unsigned int ve
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(vectorSize1);
     
     subtractVecEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector1, d_vector2);
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     CHECK_CUDA_ERROR(cudaGetLastError());
     
     return cudaSuccess;
@@ -195,7 +196,7 @@ cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tens
 // MEMORY INITIALIZATION FUNCTIONS
 
 __global__ void initZero(float* d_memorySection) {
-    d_memorySection[blockIdx.x * blockDim.x + threadIdx.x] = 2.5f;
+    d_memorySection[blockIdx.x * blockDim.x + threadIdx.x] = -2.5f;
 }
 
 // init array on device with zeros
@@ -210,7 +211,8 @@ float* zeros(unsigned int size) {
     CHECK_CUDA_ERROR(cudaMalloc(&d_memoryAllocation, blockThreadAllocation.first * blockThreadAllocation.second * sizeof(float)));
 
     // launch kernel
-    initZero<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_memoryAllocation);
+    initZero<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_memoryAllocation);
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     CHECK_CUDA_ERROR(cudaGetLastError());
 
     return d_memoryAllocation;
@@ -223,6 +225,7 @@ float* reserveMemoryOnDevice(unsigned int size) {
 
     // reserve actual space in memory, add some padding for thread efficiency
     CHECK_CUDA_ERROR(cudaMalloc(&memoryAlloc, (size + (size % BLOCK_SIZE)) * sizeof(float)));
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // return pointer 
     return memoryAlloc;
@@ -271,7 +274,8 @@ __global__ void reluGrad_kernel(float* targetMemorySpace, float* vector) {
 
 cudaError_t reluGrad(float* targetMemorySpace, float* vector, unsigned int size) {
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
-    reluGrad_kernel<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(targetMemorySpace, vector);
+    reluGrad_kernel<<<blocksThreads.first, blocksThreads.second>>>(targetMemorySpace, vector);
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     CHECK_CUDA_ERROR(cudaGetLastError());
     return cudaSuccess;
 }

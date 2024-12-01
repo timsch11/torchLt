@@ -35,12 +35,13 @@ class Tensor {
         std::pair<unsigned int, unsigned int> getShapeArg1();
         std::pair<unsigned int, unsigned int> getShapeArg2();
         std::pair<unsigned int, unsigned int> getShape();
+        unsigned int getSize();
         bool getTrackGradient();
         bool isLeaf();
         bool isGradientSet();
 
         // setter, only sets the gradient if trackGradient evaluates to true
-        void setGradient(float* _d_grad);
+        void changeGradientSet(bool _gradientSet);
 
         // gradient propagation
         void backward();
@@ -50,10 +51,10 @@ class Tensor {
         bool matVecMulCompatible(Tensor other);
 
         // operator overloading
-        /*Tensor* operator+(Tensor &other);
+        Tensor* operator+(Tensor &other);
         Tensor* operator-(Tensor &other);
         Tensor* operator*(Tensor &other);
-        Tensor* operator%(Tensor &other);*/
+        Tensor* operator%(Tensor &other);
 
         // activation functions
         Tensor* relu();
