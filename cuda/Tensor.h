@@ -75,7 +75,7 @@ class Tensor {
 
         // shape comparison
         bool sameShape(Tensor other);
-        bool matVecMulCompatible(Tensor other);
+        bool matMulCompatible(Tensor other);
 
         // operator overloading
         Tensor* operator+(Tensor &other);

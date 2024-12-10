@@ -218,9 +218,9 @@ bool Tensor::sameShape(Tensor other) {
     return (this->getShapeX() == other.getShapeX()) && (this->getShapeY() == other.getShapeY());
 }
 
-bool Tensor::matVecMulCompatible(Tensor other) {
-    // returns true if thisTensor (matrix) x otherTensor (vector) can be performed
-    return (this->getShapeY() == other.getShapeX()) && (other.getShapeY() == 1);
+bool Tensor::matMulCompatible(Tensor other) {
+    // returns true if matrices are compatible for matmul
+    return this->getShapeY() == other.getShapeX();
 }
 
 static void additionGradient(Tensor* currentTensor) {
@@ -238,17 +238,49 @@ static void subtractionGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::operator-(Tensor &other) {
+    if (!this->sameShape(other)) {
+        throw std::runtime_error("incompatible shapes for tensor addition/subtraction");
+    }
     float* d_result = vecsubAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
     return new Tensor(d_result, this->getShape(), true, subtractionGradient, this, this->getShape(), &other, other.getShape());
 }
 
 Tensor* Tensor::operator*(Tensor &other) {
-    // Remark: only supports Matrix-Vector multiplication yet
-    // Matrix-Vector multiplication
-    if (matVecMulCompatible(other)) {
+    if (matMulCompatible(other)) {
+
+        // allocate memory for result
+        float* d_result = reserveMemoryOnDevice(this->getShapeX() * other.getShapeY());
+
+        // define some parameters
+        float alpha = 1.0f;
+        float beta = 0.0f;
+        int tx = this->getShapeX();
+
+        // matmul
+        cublasStatus_t matmulStatus = cublasSgemm_v2(*handle,
+                                                    CUBLAS_OP_T,
+                                                    CUBLAS_OP_T,
+                                                    other.getShapeY(),
+                                                    tx,
+                                                    this->getShapeY(),
+                                                    &alpha,
+                                                    other.getValue(),
+                                                    other.getShapeX(),
+                                                    this->getValue(),
+                                                    tx,
+                                                    &beta,
+                                                    d_result,
+                                                    tx
+        );
         
+        if (matmulStatus != CUBLAS_STATUS_SUCCESS) {
+            throw std::runtime_error("matrix multiplication failed" + (std::string) cublasGetStatusString(matmulStatus));
+        }
+
+        // TODO
+        return new Tensor(d_result, {this->getShapeX(), other.getShapeY()}, false);
     }
-    return nullptr;
+    throw std::runtime_error("incompatible shapes for matrix multiplication");
 }
 
 Tensor* Tensor::operator%(Tensor &other) {
