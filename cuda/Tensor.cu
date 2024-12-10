@@ -1,6 +1,5 @@
 #include "Tensor.h"
 #include <stdexcept>
-#include "cublas_v2.h"
 #include "cudaNN.cu"
 
 
@@ -51,6 +50,9 @@ void destroy_cuBlas() {
 Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient) {
     // shape_x is #rows and shape_y is #columns, 0 = no actual row/column, vector has ONE column!!!
 
+    // init cuBlas (if not done yet)
+    init_cuBlas();
+
     // check for zero configuration
     if (_shape.first == 0 || _shape.second == 0) {
         throw std::runtime_error("Cannot initialize zero tensor");
@@ -61,6 +63,14 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
     this->track_gradient = _track_gradient;
 
     this->leaf = true;
+    this->lowerGraphSize = 1;
+
+    this-> gradFunction = nullptr;
+    this->d_funcArg1 = nullptr;
+    this->d_funcArg2 = nullptr;
+
+    // cudaStream_t graphStream
+    // cudaStream_t nodeStream = 
 
     if (track_gradient) {
         d_gradient = reserveMemoryOnDevice(_shape.first * _shape.second);
@@ -74,6 +84,10 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
     this->d_funcArg1 = _d_funcArg1;
     this->shapeFuncArg1 = _shapeFuncArg1;
 
+    this->lowerGraphSize += _d_funcArg1->getLowerGraphSize();
+
+    this->graphStream = _d_funcArg1->getGraphStream();
+
     this->leaf = false;
 }
 
@@ -81,6 +95,28 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
 Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1, Tensor* _d_funcArg2, std::pair<unsigned int, unsigned int> _shapeFuncArg2): Tensor(_d_value, _shape, _track_gradient, _gradFunction, _d_funcArg1, _shapeFuncArg1) {
     this->d_funcArg2 = _d_funcArg2;
     this->shapeFuncArg2 = _shapeFuncArg2;
+    this->lowerGraphSize += _d_funcArg2->getLowerGraphSize();
+
+    // merge graphStreams of subgraphs
+
+    cudaStream_t* unifiedGraphStream;
+
+    if (_d_funcArg1->getLowerGraphSize() >= _d_funcArg2->getLowerGraphSize()) {  // use graphStream of d_funcArg1
+        unifiedGraphStream = _d_funcArg1->getGraphStream();
+
+        // modify graphStreams of other subgraph
+        _d_funcArg2->setGraphStreamForSubgraph(unifiedGraphStream);
+
+    } else {  // use graphStream of d_funcArg2
+
+        unifiedGraphStream = _d_funcArg2->getGraphStream();
+        
+        // modify graphStreams of other subgraph
+        _d_funcArg1->setGraphStreamForSubgraph(unifiedGraphStream);
+    }
+
+    // update this node
+    this->graphStream = unifiedGraphStream;
 }
 
 // basic functions
@@ -130,6 +166,14 @@ std::pair<unsigned int, unsigned int> Tensor::getShapeArg2() {
     return this->shapeFuncArg2;
 }
 
+cudaStream_t* Tensor::getGraphStream() {
+    return this->graphStream;
+}
+
+unsigned int Tensor::getLowerGraphSize() {
+    return this->lowerGraphSize;
+}
+
 bool Tensor::isLeaf() {
     return this->leaf;
 }
@@ -140,6 +184,27 @@ bool Tensor::isGradientSet() {
 
 void Tensor::changeGradientSet(bool _gradientSet) {
     this->gradientSet = _gradientSet;
+}
+
+// updates graphStream for the subgraph and itself, requires initalized stream
+void Tensor::setGraphStreamForSubgraph(cudaStream_t* _graphStream) {
+
+    this->graphStream = _graphStream;
+
+    // stop recursion if we reached a leaf
+    if (this->isLeaf()) {
+        return;
+    }
+
+    if (this->d_funcArg1 != nullptr) {
+        // call setGraphStreamForSubgraph in d_funcArg1
+        this->d_funcArg1->setGraphStreamForSubgraph(_graphStream);
+    }
+
+    if (this->d_funcArg2 != nullptr) {
+        // call setGraphStreamForSubgraph in d_funcArg2
+        this->d_funcArg2->setGraphStreamForSubgraph(_graphStream);
+    }
 }
 
 void Tensor::backward() {
