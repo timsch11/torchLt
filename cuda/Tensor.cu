@@ -1,6 +1,47 @@
 #include "Tensor.h"
 #include <stdexcept>
+#include "cublas_v2.h"
 #include "cudaNN.cu"
+
+
+cublasHandle_t* handle = nullptr;
+
+// creates a global cuBlas handle if it does not already exist
+void init_cuBlas() {
+    if (handle == nullptr) {
+
+        // allocate memory for handle object
+        handle = new cublasHandle_t;
+
+        // create handle, store status type
+        cublasStatus_t createStatus = cublasCreate_v2(handle);
+
+        // error handling
+        if (createStatus != CUBLAS_STATUS_SUCCESS) {
+
+            // free allocated memory and reset pointer
+            delete handle;
+            handle = nullptr;
+
+            throw std::runtime_error("cuBLAS initialization failed" + (std::string) cublasGetStatusString(createStatus));
+        }
+    }
+}
+
+// destroys the global cuBlas handle and frees associated memory, to run a cuBlas function you need to call init_cuBlas again
+void destroy_cuBlas() {
+    if (handle != nullptr) {
+
+        // destroy handle, store status type
+        cublasStatus_t destroyStatus = cublasDestroy_v2(*handle);
+
+        // no error handling, only one error case: CUBLAS_STATUS_NOT_INITIALIZED (if condition ensures that this does not happen)
+
+        // reset pointer to cuBlas handle
+        delete handle;
+        handle = nullptr;
+    }
+}
 
 
 // only covers vectors and matrices
@@ -165,9 +206,15 @@ Tensor* Tensor::relu() {
     return new Tensor(d_tensorValue, this->getShape(), true, reluGradient, this, this->getShape());
 }
 
+Tensor::~Tensor() {
+    // TODO
+}
+
 
 int main() {
-    float* mem = zeros(5);
+    init_cuBlas();
+    destroy_cuBlas();
+    /*float* mem = zeros(5);
     Tensor* t1 = new Tensor(mem, {5, 1}, true);
     float* mem2 = zeros(5);
     Tensor* t2 = new Tensor(mem2, {5, 1}, true);
