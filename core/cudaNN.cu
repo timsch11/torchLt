@@ -1,5 +1,6 @@
 #include "cudaMem.cu"
-#include "cudaOperations.cu"
+#include "cudaMath.cu"
+#include "cudaDif.cu"
 
 /*All of the below implemented function return a pointer to the corresponding result location, this location is equal to the one passed as a parameter*/
 

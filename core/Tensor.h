@@ -52,18 +52,24 @@ class Tensor {
         float* getValue();
         float* getValueCPU();
         float* getGradient();
+
         unsigned int getShapeX();
         unsigned int getShapeY();
-        Tensor* getArg1();
-        Tensor* getArg2();
-        std::pair<unsigned int, unsigned int> getShapeArg1();
-        std::pair<unsigned int, unsigned int> getShapeArg2();
-        cudaStream_t* getGraphStream();
         std::pair<unsigned int, unsigned int> getShape();
         unsigned int getSize();
+
+        Tensor* getArg1();
+        Tensor* getArg2();
+
+        std::pair<unsigned int, unsigned int> getShapeArg1();
+        std::pair<unsigned int, unsigned int> getShapeArg2();
+
+        cudaStream_t* getGraphStream();
+
         bool getTrackGradient();
         bool isLeaf();
         bool isGradientSet();
+
         unsigned int getLowerGraphSize();
 
         // setter, only sets the gradient if trackGradient evaluates to true
@@ -72,6 +78,9 @@ class Tensor {
 
         // gradient propagation
         void backward();
+
+        // update value without gradient tracking (i.e. for updating the weights of a neural network)
+        // void addNoGrad() # TODO
 
         // shape comparison
         bool sameShape(Tensor other);

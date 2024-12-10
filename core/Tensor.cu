@@ -43,8 +43,6 @@ void destroy_cuBlas() {
     }
 }
 
-
-// only covers vectors and matrices
 // prefix d_ marks values residing on gpu memory
 
 // initalize leaf
