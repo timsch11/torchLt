@@ -36,6 +36,10 @@ Split across multiple files for better organization:
 - Activation functions (ReLU)
 - Weight update mechanisms
 
+#### util.cu
+- Error handling
+- Optimized Block/Thread Allocation
+
 ## Usage Example
 ```cpp
 // Create tensors on GPU
