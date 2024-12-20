@@ -170,7 +170,7 @@ cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tens
     // let kernel do its work
     hadamard_kernel<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor1, d_tensor2);
 
-    // error checking
+    // return error
     return cudaGetLastError();
 }
 
