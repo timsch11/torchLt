@@ -132,6 +132,16 @@ float* Tensor::getValue() {
     return this->d_value;
 }
 
+float* Tensor::getValueCPU() {
+    // initalize float array on host 
+    float* host_value = (float*) malloc(this->getSize() * sizeof(float));
+
+    // copy data, check for errors
+    CHECK_CUDA_ERROR(cudaMemcpy(host_value, this->getValue(), this->getSize() * sizeof(float), cudaMemcpyDeviceToHost));
+    
+    return host_value;
+}
+
 float* Tensor::getGradient() {
     return this->d_gradient;
 }

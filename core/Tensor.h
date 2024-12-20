@@ -110,6 +110,7 @@ class Tensor {
         /**
          * @brief Gets the pointer to the tensor's value data on CPU memory
          * @return float* Pointer to the tensor's value data stored on host (CPU) memory
+         * @note take care of the deletion since the return value is a pointer
          */
         float* getValueCPU();
         /**
