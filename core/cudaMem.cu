@@ -2,11 +2,19 @@
 #include "util.cu"
 
 
+/**
+ * @brief kernel for constant value initalization
+ * @param d_memorySection pointer to memory section that is to be initalized
+ * @param value value to fill in
+ */
 __global__ void initMemCell(float* d_memorySection, float value) {
     d_memorySection[blockIdx.x * blockDim.x + threadIdx.x] = value;
 }
 
-// returns pointer to device array of <size> (+ padding) inialized with 0
+/**
+ * @brief returns pointer to newly created device array of <size> (+ padding) inialized with 0
+ * @param size size of array to be initalized
+ */
 float* zeros(unsigned int size) {
     // returns a pointer to (first element of) an array (interpretation of dimension is up to the caller) of specified size filled with zeros; array lives in unified memory (on cpu and gpu)
 
@@ -25,7 +33,11 @@ float* zeros(unsigned int size) {
     return d_memoryAllocation;
 }
 
-// returns pointer to device array of <size> (+ padding) inialized with <value>
+/**
+ * @brief returns pointer to newly created device array of <size> (+ padding) inialized with <value>
+ * @param size size of array to be initalized
+ * @param value value to fill in
+ */
 float* constants(unsigned int size, float value) {
 
     // calc block/thread allocation scheme
@@ -43,7 +55,10 @@ float* constants(unsigned int size, float value) {
     return d_memoryAllocation;
 }
 
-// returns pointer to allocated but uninitalized device array of <size> (+ padding)
+/**
+ * @brief returns pointer to allocated but uninitalized device float array of <size> (+ padding)
+ * @param size size of memory section
+ */
 float* reserveMemoryOnDevice(unsigned int size) {
     // declare pointer
     float* memoryAlloc;
@@ -58,7 +73,13 @@ float* reserveMemoryOnDevice(unsigned int size) {
 
 // WEIGHT INITIALIZATION FUNCTIONS
 
-
+/**
+ * @brief kernel for random initalization
+ * @param weights pointer to (padded) memory section that is to be initalized
+ * @param size size of tensor (=number of total elements)
+ * @param scaling_factor variance of the normal distribution
+ * @param seed determines the seed for the curand normal dist. function
+ */
 __global__ void cuda_weight_init(float* weights, unsigned int size, float scalingFactor, int seed) {
     // declaring random state
     curandState state;
@@ -73,15 +94,20 @@ __global__ void cuda_weight_init(float* weights, unsigned int size, float scalin
     weights[ind] = curand_normal(&state) * sqrtf(scalingFactor);
 }
 
-// fills matrix of specified shape with values sampled from a scaled random normal distribution: N~(0, sqrt(<scalingFactor>))
-void weight_init(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, float scaling_factor, int seed) {
+/**
+ * @brief fills tensor of specified size with values sampled from a scaled random normal distribution: N~(0, sqrt(<scalingFactor>))
+ * @param d_targetMemorySpace pointer to (padded) memory section that is to be initalized
+ * @param size size of tensor (=number of total elements)
+ * @param scaling_factor variance of the normal distribution
+ * @param seed determines the seed for the curand normal dist. function
+ */
+void weight_init(float* d_targetMemorySpace, unsigned int size, float scaling_factor, int seed) {
 
-    // set size, add some padding to ensure that kernel runs efficiently but also does not override other memory cells
-    unsigned int size = in_features * out_features;
-    size += size % BLOCK_SIZE;
+    // add some padding to ensure that kernel runs efficiently but also does not override other memory cells
+    std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
     // run kernel
-    cuda_weight_init<<<in_features, out_features>>>(d_targetMemorySpace, size, scaling_factor, seed);
+    cuda_weight_init<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_targetMemorySpace, size, scaling_factor, seed);
     CHECK_CUDA_ERROR(cudaGetLastError());
 
     // Wait for GPU to finish before accessing on host
