@@ -6,7 +6,11 @@
 cublasHandle_t* handle = nullptr;
 unsigned int activeTensors = 0;
 
-// creates a global cuBlas handle if it does not already exist
+/**
+ * @brief creates a global cuBlas handle if it does not already exist
+ * @note throws error if creation failed
+ * 
+ */
 void init_cuBlas() {
     if (handle == nullptr) {
 
@@ -28,7 +32,10 @@ void init_cuBlas() {
     }
 }
 
-// destroys the global cuBlas handle and frees associated memory, to run a cuBlas function you need to call init_cuBlas again
+/**
+ * @brief destroys the global cuBlas handle and frees associated memory
+ * @note to run a cuBlas function you need to first call init_cuBlas again
+ */
 void destroy_cuBlas() {
     if (handle != nullptr) {
 
@@ -42,8 +49,6 @@ void destroy_cuBlas() {
         handle = nullptr;
     }
 }
-
-// prefix d_ marks values residing on gpu memory
 
 // initalize leaf
 Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient) {
@@ -230,24 +235,33 @@ static void additionGradient(Tensor* currentTensor) {
 }
 
 // adds tensor values up and stores result in new Tensor, returns pointer to Tensor that holds result of addition if shapes match, otherwise prints error message and returns nullpointer
-Tensor* Tensor::operator+(Tensor &other) {
-    float* d_result = vecaddAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
+Tensor* Tensor::add(Tensor &other) {
+    float* d_result = tensoraddAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
     return new Tensor(d_result, this->getShape(), true, additionGradient, this, this->getShape(), &other, other.getShape());
+}
+
+Tensor* Tensor::operator+(Tensor &other) {
+    return this->add(other);
 }
 
 static void subtractionGradient(Tensor* currentTensor) {
 
 }
 
-Tensor* Tensor::operator-(Tensor &other) {
-    if (!this->sameShape(other)) {
-        throw std::runtime_error("incompatible shapes for tensor addition/subtraction");
-    }
-    float* d_result = vecsubAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
+Tensor* Tensor::sub(Tensor &other) {
+    float* d_result = tensorsubAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
     return new Tensor(d_result, this->getShape(), true, subtractionGradient, this, this->getShape(), &other, other.getShape());
 }
 
-Tensor* Tensor::operator*(Tensor &other) {
+Tensor* Tensor::operator-(Tensor &other) {
+    return this->sub(other);
+}
+
+static void multiplicationGradient(Tensor* currentTensor) {
+
+}
+
+Tensor* Tensor::matmul(Tensor &other) {
     if (matMulCompatible(other)) {
 
         // allocate memory for result
@@ -260,34 +274,49 @@ Tensor* Tensor::operator*(Tensor &other) {
 
         // matmul
         cublasStatus_t matmulStatus = cublasSgemm_v2(*handle,
-                                                    CUBLAS_OP_T,
-                                                    CUBLAS_OP_T,
+                                                    CUBLAS_OP_N,
+                                                    CUBLAS_OP_N,
                                                     other.getShapeY(),
-                                                    tx,
-                                                    this->getShapeY(),
+                                                    this->getShapeX(),
+                                                    other.getShapeX(),
                                                     &alpha,
                                                     other.getValue(),
-                                                    other.getShapeX(),
+                                                    other.getShapeY(),
                                                     this->getValue(),
-                                                    tx,
+                                                    this->getShapeY(),
                                                     &beta,
                                                     d_result,
-                                                    tx
+                                                    other.getShapeY()
         );
         
         if (matmulStatus != CUBLAS_STATUS_SUCCESS) {
-            throw std::runtime_error("matrix multiplication failed" + (std::string) cublasGetStatusString(matmulStatus));
+            throw std::runtime_error("matrix multiplication failed: " + (std::string) cublasGetStatusString(matmulStatus));
         }
 
-        // TODO
-        return new Tensor(d_result, {this->getShapeX(), other.getShapeY()}, false);
+        // return result as a new Tensor
+        return new Tensor(d_result, {this->getShapeX(), other.getShapeY()}, true, multiplicationGradient, this, this->getShape(), &other, other.getShape());
     }
     throw std::runtime_error("incompatible shapes for matrix multiplication");
 }
 
+Tensor* Tensor::operator*(Tensor &other) {
+    return matmul(other);
+}
+
+static void hadamardGradient(Tensor* currentTensor) {
+
+}
+
+Tensor* Tensor::hadamardProduct(Tensor &other) {
+    // error checking is done is hadamardAlloc
+    float* d_result = hadamardAlloc(this->getValue(), this->getShape(), other.getValue(), other.getShape());
+    
+    // return new Tensor
+    return new Tensor(d_result, this->getShape(), true, hadamardGradient, this, this->getShape(), &other, other.getShape());
+}
+
 Tensor* Tensor::operator%(Tensor &other) {
-    // performs hadamard product
-    return nullptr;
+    return hadamardProduct(other);
 }
 
 // activation functions
@@ -300,8 +329,7 @@ static void reluGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::relu() {
-    unsigned int size = this->getShapeX() * this->getShapeY();
-    float* d_tensorValue = reluAlloc(this->getValue(), size);
+    float* d_tensorValue = reluAlloc(this->getValue(), this->getSize());
     return new Tensor(d_tensorValue, this->getShape(), true, reluGradient, this, this->getShape());
 }
 
@@ -311,8 +339,6 @@ Tensor::~Tensor() {
     // free occupied memory
     cudaFree(d_value);
     cudaFree(d_gradient);
-    cudaFree(d_funcArg1);
-    cudaFree(d_funcArg2);
 
     // cuBlas handle
     activeTensors--;
@@ -323,14 +349,14 @@ Tensor::~Tensor() {
 
 
 int main() {
-    float* mem = constants(6, 15.0f);
-    Tensor* t1 = new Tensor(mem, {2, 3}, true);
-    float mem2[6] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    float* mem = constants(4, 2);
+    Tensor* t1 = new Tensor(mem, {2, 2}, true);
+    float mem2[6] = {0.0f, -2.0f, 3.0f, -4.0f};
     float* d_mem2;
     cudaMalloc(&d_mem2, 6*sizeof(float));
     cudaMemcpy(d_mem2, &mem2, 6 * sizeof(float), cudaMemcpyHostToDevice);
-    Tensor* t2 = new Tensor(d_mem2, {3, 2}, true);
-    Tensor* t3 = *t1 * *t2;
+    Tensor* t2 = new Tensor(d_mem2, {2, 2}, true);
+    Tensor* t3 = t2->relu();
     // t2->backward();
     float host_result[6];
     cudaMemcpy(host_result, t3->getValue(), 6 * sizeof(float), cudaMemcpyDeviceToHost);
