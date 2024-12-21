@@ -211,7 +211,7 @@ class Tensor {
          */
         void setGraphStreamForSubgraph(cudaStream_t* graphStream);
         /**
-         * @brief Performs backward pass gradient computation through the computation graph
+         * @brief Performs backward pass gradient computation through the computational graph
          * @note Calls the gradient function stored in the tensor to compute gradients if gradient tracking is enabled
          */
         void backward();
