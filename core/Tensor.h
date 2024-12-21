@@ -1,5 +1,5 @@
 #include "cublas_v2.h"
-
+#include <iostream>
 
 class Tensor {
 
@@ -67,6 +67,14 @@ class Tensor {
 
     public:
         /**
+         * @brief Constructor for creating a Tensor of specified shape initalized with values from the specified initalization_function
+         * @param _shape Shape of the Tensor
+         * @param _track_gradient Whether to track gradients for this tensor
+         * @param seed Seed to be used if initalization is random
+         * @param initalization_function Function to use for value initalization, params must match (float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed)
+         */
+        Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed, void(*initalization_function)(float*, unsigned int, unsigned int, int));
+        /**
          * @brief Constructor for creating a Tensor as result of a unary operation
          * @param _d_value Pointer to device memory containing tensor values
          * @param _shape Shape of the tensor as (rows, columns) pair
@@ -106,83 +114,83 @@ class Tensor {
          * @brief Gets the pointer to the tensor's value data on GPU memory
          * @return float* Pointer to the tensor's value data stored on device (GPU) memory
          */
-        float* getValue();
+        float* getValue() const;
         /**
          * @brief Gets the pointer to the tensor's value data on CPU memory
          * @return float* Pointer to the tensor's value data stored on host (CPU) memory
          * @note take care of the deletion since the return value is a pointer
          */
-        float* getValueCPU();
+        float* getValueCPU() const;
         /**
          * @brief Gets the pointer to the tensor's gradient data on GPU memory
          * @return float* Pointer to the tensor's gradient data stored on device (GPU) memory
          */
-        float* getGradient();
+        float* getGradient() const;
         /**
          * @brief Get the number of rows in the tensor
          * @return unsigned int - number of rows
          */
-        unsigned int getShapeX();
+        unsigned int getShapeX() const;
         /**
          * @brief Get the number of columns in the tensor
          * @return unsigned int - number of columns
          */
-        unsigned int getShapeY();
+        unsigned int getShapeY() const;
         /**
          * @brief Get the shape of the tensor as a pair of dimensions
          * @return std::pair<unsigned int, unsigned int> - (rows, columns)
          */
-        std::pair<unsigned int, unsigned int> getShape();
+        std::pair<unsigned int, unsigned int> getShape() const;
         /**
          * @brief Get total number of elements in the tensor
          * @return unsigned int - product of rows and columns
          */
-        unsigned int getSize();
+        unsigned int getSize() const;
         /**
          * @brief Get pointer to first argument tensor used in operation
          * @return Tensor* - pointer to first argument tensor
          */
-        Tensor* getArg1();
+        Tensor* getArg1() const;
         /**
          * @brief Get pointer to second argument tensor used in operation
          * @return Tensor* - pointer to second argument tensor
          */
-        Tensor* getArg2();
+        Tensor* getArg2() const;
         /**
          * @brief Get shape of first argument tensor used in operation
          * @return std::pair<unsigned int, unsigned int> - (rows, columns) of first argument
          */
-        std::pair<unsigned int, unsigned int> getShapeArg1();
+        std::pair<unsigned int, unsigned int> getShapeArg1() const;
         /**
          * @brief Get shape of second argument tensor used in operation
          * @return std::pair<unsigned int, unsigned int> - (rows, columns) of second argument
          */
-        std::pair<unsigned int, unsigned int> getShapeArg2();
+        std::pair<unsigned int, unsigned int> getShapeArg2() const;
         /**
          * @brief Get pointer to CUDA stream associated with this tensor's computational graph
          * @return Pointer to cudaStream_t stream used for asynchronous operations
          */
-        cudaStream_t* getGraphStream();
+        cudaStream_t* getGraphStream() const;
         /**
          * @brief Check if gradients should be tracked for this tensor
          * @return true if gradients are being tracked, false otherwise
          */
-        bool getTrackGradient();
+        bool getTrackGradient() const;
         /**
          * @brief Check if this tensor is a leaf node (has no dependencies)
          * @return true if tensor is a leaf node, false if it depends on other tensors
          */
-        bool isLeaf();
+        bool isLeaf() const;
         /**
          * @brief Check if gradient has been computed and set for this tensor
          * @return true if gradient is set, false otherwise
          */
-        bool isGradientSet();
+        bool isGradientSet() const;
         /**
          * @brief Get size of computational graph below this tensor
          * @return Number of nodes in the subgraph where this tensor is root
          */
-        unsigned int getLowerGraphSize();
+        unsigned int getLowerGraphSize() const;
 
         // SETTER
 
@@ -292,6 +300,10 @@ class Tensor {
          * @return Pointer to new tensor containing the Hadamard product
          */
         Tensor* operator%(Tensor &other);
+        /**
+         * @brief Returns stream representing the shape and value of the current Tensor
+         */
+        friend std::ostream& operator<<(std::ostream &s, const Tensor &tensor);
 
         // ACTIVATION
 

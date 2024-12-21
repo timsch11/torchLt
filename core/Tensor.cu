@@ -50,6 +50,13 @@ void destroy_cuBlas() {
     }
 }
 
+// initalize leaf with values from a custom function
+Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed, void(*initalization_function)(float*, unsigned int, unsigned int, int))
+: Tensor(nullptr, _shape, _track_gradient) {
+    cudaMalloc(&this->d_value, _shape.first * _shape.second * sizeof(float));
+    initalization_function(this->d_value, _shape.first, _shape.second, seed);
+}
+
 // initalize leaf
 Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient) {
     // shape_x is #rows and shape_y is #columns, 0 = no actual row/column, vector has ONE column!!!
@@ -85,7 +92,8 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
 }
 
 // initalize result of single tensor operation
-Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1): Tensor(_d_value, _shape, _track_gradient) {
+Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1)
+: Tensor(_d_value, _shape, _track_gradient) {
     
     this-> gradFunction = _gradFunction;
     this->d_funcArg1 = _d_funcArg1;
@@ -99,7 +107,8 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
 }
 
 // initalize result of dual tensor operation
-Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1, Tensor* _d_funcArg2, std::pair<unsigned int, unsigned int> _shapeFuncArg2): Tensor(_d_value, _shape, _track_gradient, _gradFunction, _d_funcArg1, _shapeFuncArg1) {
+Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1, Tensor* _d_funcArg2, std::pair<unsigned int, unsigned int> _shapeFuncArg2)
+: Tensor(_d_value, _shape, _track_gradient, _gradFunction, _d_funcArg1, _shapeFuncArg1) {
     this->d_funcArg2 = _d_funcArg2;
     this->shapeFuncArg2 = _shapeFuncArg2;
     this->lowerGraphSize += _d_funcArg2->getLowerGraphSize();
@@ -128,11 +137,11 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
 
 // basic functions
 
-float* Tensor::getValue() {
+float* Tensor::getValue() const {
     return this->d_value;
 }
 
-float* Tensor::getValueCPU() {
+float* Tensor::getValueCPU() const {
     // initalize float array on host 
     float* host_value = (float*) malloc(this->getSize() * sizeof(float));
 
@@ -142,60 +151,60 @@ float* Tensor::getValueCPU() {
     return host_value;
 }
 
-float* Tensor::getGradient() {
+float* Tensor::getGradient() const {
     return this->d_gradient;
 }
 
-unsigned int Tensor::getShapeX() {
+unsigned int Tensor::getShapeX() const {
     return this->shape.first;
 }
 
-unsigned int Tensor::getShapeY() {
+unsigned int Tensor::getShapeY() const {
     return this->shape.second;
 }
 
-std::pair<unsigned int, unsigned int> Tensor::getShape() {
+std::pair<unsigned int, unsigned int> Tensor::getShape() const {
     return this->shape;
 }
 
 // returns number of entries of this tensor (product of shapes with respect to each dimension)
-unsigned int Tensor::getSize() {
+unsigned int Tensor::getSize() const {
     return this->getShape().first * this->getShape().second;
 }
 
-bool Tensor::getTrackGradient() {
+bool Tensor::getTrackGradient() const {
     return this->track_gradient;
 }
 
-Tensor* Tensor::getArg1() {
+Tensor* Tensor::getArg1() const {
     return this->d_funcArg1;
 }
 
-Tensor* Tensor::getArg2() {
+Tensor* Tensor::getArg2() const {
     return this->d_funcArg2;
 }
 
-std::pair<unsigned int, unsigned int> Tensor::getShapeArg1() {
+std::pair<unsigned int, unsigned int> Tensor::getShapeArg1() const {
     return this->shapeFuncArg1;
 }
 
-std::pair<unsigned int, unsigned int> Tensor::getShapeArg2() {
+std::pair<unsigned int, unsigned int> Tensor::getShapeArg2() const {
     return this->shapeFuncArg2;
 }
 
-cudaStream_t* Tensor::getGraphStream() {
+cudaStream_t* Tensor::getGraphStream() const {
     return this->graphStream;
 }
 
-unsigned int Tensor::getLowerGraphSize() {
+unsigned int Tensor::getLowerGraphSize() const {
     return this->lowerGraphSize;
 }
 
-bool Tensor::isLeaf() {
+bool Tensor::isLeaf() const {
     return this->leaf;
 }
         
-bool Tensor::isGradientSet() {
+bool Tensor::isGradientSet() const {
     return this->gradientSet;
 }
 
@@ -343,9 +352,47 @@ Tensor* Tensor::relu() {
     return new Tensor(d_tensorValue, this->getShape(), true, reluGradient, this, this->getShape());
 }
 
+std::ostream& operator<<(std::ostream &s, const Tensor &tensor) {
+
+    // example
+    /* shape=(3, 3)
+        1 2 3
+        4 5 6
+        7 8 9 
+    */
+
+    // add shape tuple to stream: first line
+    s << "shape=(" << tensor.getShapeX() << "," << tensor.getShapeY() << ")" << std::endl;
+
+    // cache frequently used attributes as local variables
+    unsigned int size = tensor.getSize();
+    unsigned int rowSize = tensor.getShapeY();
+
+    // load copy of value (residing on GPU) to CPU to properly access values
+    float* val = tensor.getValueCPU();
+
+    // print matrix in row major format
+    for (unsigned int ind=0; ind<size; ind++) {
+
+        // add linebreak before printing next row
+        if (ind % rowSize == 0) {
+            s << std::endl;
+        }
+
+        // append current entry
+        s << val[ind] << " ";
+    }
+
+    // free CPU copy of values
+    free(val);
+
+    // return appended stream
+    return s << std::endl;
+}
+
 // frees memory associated with this tensor and manages the cuBlas handle, be aware that this impacts the gradient calculation of preceding operations
 Tensor::~Tensor() {
-
+    
     // free occupied memory
     cudaFree(d_value);
     cudaFree(d_gradient);
@@ -359,7 +406,9 @@ Tensor::~Tensor() {
 
 
 int main() {
-    float* mem = constants(4, 2);
+    Tensor ten = Tensor({2, 2}, true, 2322, xavier);
+    std::cout << ten;
+    /*float* mem = constants(4, 2);
     Tensor* t1 = new Tensor(mem, {2, 2}, true);
     float mem2[6] = {0.0f, -2.0f, 3.0f, -4.0f};
     float* d_mem2;
