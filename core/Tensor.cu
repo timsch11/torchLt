@@ -53,8 +53,8 @@ void destroy_cuBlas() {
 // initalize leaf with values from a custom function
 Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed, void(*initalization_function)(float*, unsigned int, unsigned int, int))
 : Tensor(nullptr, _shape, _track_gradient) {
-    cudaMalloc(&this->d_value, _shape.first * _shape.second * sizeof(float));
-    initalization_function(this->d_value, _shape.first, _shape.second, seed);
+    this->d_value = reserveMemoryOnDevice( _shape.first * _shape.second);
+    initalization_function(this->getValue(), _shape.first, _shape.second, seed);
 }
 
 // initalize leaf
@@ -246,8 +246,18 @@ void Tensor::setGraphStreamForSubgraph(cudaStream_t* _graphStream) {
 }
 
 void Tensor::backward() {
-    if (this->getTrackGradient()) {
+    // skip if either gradient tracking is disabled or there are no preceding calculations
+    if (this->getTrackGradient() && !this->isLeaf()) {
         this->gradFunction(this);
+
+        // recursively calculate gradients of preceding operations
+        if (this->getArg1() != nullptr) {
+            this->getArg1()->backward();
+        }
+
+        if (this->getArg2() != nullptr) {
+            this->getArg2()->backward();
+        }
     }
 }
 
@@ -313,7 +323,7 @@ static void additionGradient(Tensor* currentTensor) {
 // adds tensor values up and stores result in new Tensor, returns pointer to Tensor that holds result of addition if shapes match, otherwise prints error message and returns nullpointer
 Tensor* Tensor::add(Tensor &other) {
     float* d_result = tensoraddAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
-    return new Tensor(d_result, this->getShape(), true, additionGradient, this, this->getShape(), &other, other.getShape());
+    return new Tensor(d_result, this->getShape(), true, &additionGradient, this, this->getShape(), &other, other.getShape());
 }
 
 Tensor* Tensor::operator+(Tensor &other) {
@@ -365,7 +375,7 @@ static void subtractionGradient(Tensor* currentTensor) {
 
 Tensor* Tensor::sub(Tensor &other) {
     float* d_result = tensorsubAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
-    return new Tensor(d_result, this->getShape(), true, subtractionGradient, this, this->getShape(), &other, other.getShape());
+    return new Tensor(d_result, this->getShape(), true, &subtractionGradient, this, this->getShape(), &other, other.getShape());
 }
 
 Tensor* Tensor::operator-(Tensor &other) {
@@ -495,7 +505,7 @@ std::ostream& operator<<(std::ostream &s, const Tensor &tensor) {
     */
 
     // add shape tuple to stream: first line
-    s << "shape=(" << tensor.getShapeX() << "," << tensor.getShapeY() << ")" << std::endl;
+    s << std::endl << "shape=(" << tensor.getShapeX() << "," << tensor.getShapeY() << ")";
 
     // cache frequently used attributes as local variables
     unsigned int size = tensor.getSize();
@@ -536,7 +546,7 @@ void Tensor::printGradient() const {
     */
 
     // add shape tuple to stream: first line
-    std::cout << "shape=(" << this->getShapeX() << "," << this->getShapeY() << ")" << std::endl;
+    std::cout << std::endl << "shape=(" << this->getShapeX() << "," << this->getShapeY() << ")";
 
     // cache frequently used attributes as local variables
     unsigned int size = this->getSize();
@@ -579,16 +589,22 @@ Tensor::~Tensor() {
 int main() {
     float* mem = constants(4, 2);
     Tensor* t1 = new Tensor(mem, {2, 2}, true);
-    float mem2[6] = {0.0f, -2.0f, 3.0f, -4.0f};
-    float* d_mem2;
-    cudaMalloc(&d_mem2, 6*sizeof(float));
-    cudaMemcpy(d_mem2, &mem2, 6 * sizeof(float), cudaMemcpyHostToDevice);
-    Tensor* t2 = new Tensor(d_mem2, {2, 2}, true);
-    Tensor* t3 = *t1 + *t2;
-    t3->backward();
-    std::cout << *t3;
+    float* mem2 = constants(4, -5);
+    Tensor* t2 = new Tensor(mem2, {2, 2}, true);
+    float* mem3 = constants(4, -2);
+    Tensor* t4 = new Tensor(mem3, {2, 2}, true);
+    Tensor* t3 = *t1 - *t2;
+    Tensor* t5 = *t3 % *t4;
+
+    t5->printValue();
+
+    t5->backward();
+
+    t5->printValue();
+    t3->printValue();
+
     t1->printGradient();
-    t2->printGradient();
+    t4->printGradient();
 
     /*float h_bias[3] = {1.0f, -2.0f, 3.0f};
     float *bias;
