@@ -74,6 +74,8 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
             
     this->d_value = _d_value;
     this->shape = _shape;
+
+    this->gradientSet = false;
     this->track_gradient = _track_gradient;
 
     this->leaf = true;
@@ -259,8 +261,53 @@ bool Tensor::matMulCompatible(Tensor other) const {
     return this->getShapeY() == other.getShapeX();
 }
 
+/**
+ * @brief Computes the gradient for the addition operation in a computational graph.
+ *
+ * This function calculates the gradient of the current tensor with respect to its arguments.
+ * If the gradient for the current tensor is already set, it duplicates this gradient to the
+ * gradients of the arguments. Otherwise, it initializes the gradients of the arguments to 1.0.
+ *
+ * @param currentTensor Pointer to the current tensor whose gradient is to be computed.
+ *
+ * The function performs the following steps:
+ * 1. Retrieves the arguments (arg1 and arg2) of the current tensor.
+ * 2. Checks if the gradient for the current tensor is already set.
+ *    - If set, duplicates the gradient to the gradients of arg1 and arg2 if they track gradients.
+ *    - If not set, initializes the gradients of arg1 and arg2 to 1.0 if they track gradients.
+ */
 static void additionGradient(Tensor* currentTensor) {
+    // cache args
+    Tensor* arg1 = currentTensor->getArg1();
+    Tensor* arg2 = currentTensor->getArg2();
 
+    // copy gradient of this Tensor (and multply by I, neglected)
+    if (currentTensor->isGradientSet()) {
+
+        // the gradient of the last computation in this computational graph wrt this Tensor
+        float* partialGradient = currentTensor->getGradient();
+
+        if (arg1->getTrackGradient()) {
+            cudaMemDup(partialGradient, arg1->getGradient(), arg1->getSize(), false);
+            arg1->changeGradientSet(true);
+        }
+
+        if (arg2->getTrackGradient()) {
+            cudaMemDup(partialGradient, arg2->getGradient(), arg1->getSize(), false);
+            arg2->changeGradientSet(true);
+        }
+    } else {
+
+        if (arg1->getTrackGradient()) {
+            constants(arg1->getGradient(), arg1->getSize(), 1.0f);
+            arg1->changeGradientSet(true);
+        }
+
+        if (arg2->getTrackGradient()) {
+            constants(arg2->getGradient(), arg1->getSize(), 1.0f);
+            arg2->changeGradientSet(true);
+        }
+    }
 }
 
 // adds tensor values up and stores result in new Tensor, returns pointer to Tensor that holds result of addition if shapes match, otherwise prints error message and returns nullpointer
@@ -273,8 +320,47 @@ Tensor* Tensor::operator+(Tensor &other) {
     return this->add(other);
 }
 
+/**
+ * @brief Computes the gradient for the subtraction operation in a computational graph.
+ *
+ * This function calculates the gradient of the current tensor with respect to its arguments
+ * (arg1 and arg2) and updates their gradients accordingly. If the gradient for the current
+ * tensor is already set, it duplicates this gradient to the arguments' gradients. If the
+ * gradient is not set, it initializes the arguments' gradients to a constant value of 1.0.
+ *
+ * @param currentTensor Pointer to the current tensor whose gradient is being computed.
+ */
 static void subtractionGradient(Tensor* currentTensor) {
+    // cache args
+    Tensor* arg1 = currentTensor->getArg1();
+    Tensor* arg2 = currentTensor->getArg2();
 
+    // copy gradient of this Tensor (and multply by I, neglected)
+    if (currentTensor->isGradientSet()) {
+
+        // the gradient of the last computation in this computational graph wrt this Tensor
+        float* partialGradient = currentTensor->getGradient();
+
+        if (arg1->getTrackGradient()) {
+            cudaMemDup(partialGradient, arg1->getGradient(), arg1->getSize(), false);
+            arg1->changeGradientSet(true);
+        }
+
+        if (arg2->getTrackGradient()) {
+            cudaMemDup(partialGradient, arg2->getGradient(), arg1->getSize(), false);
+            arg2->changeGradientSet(true);
+        }
+    } else {
+        if (arg1->getTrackGradient()) {
+            constants(arg1->getGradient(), arg1->getSize(), 1.0f);
+            arg1->changeGradientSet(true);
+        }
+
+        if (arg2->getTrackGradient()) {
+            constants(arg2->getGradient(), arg1->getSize(), 1.0f);
+            arg2->changeGradientSet(true);
+        }
+    }
 }
 
 Tensor* Tensor::sub(Tensor &other) {
@@ -332,8 +418,45 @@ Tensor* Tensor::operator*(Tensor &other) {
     return matmul(other);
 }
 
+/**
+ * @brief Computes and stores the derivatives of the hadamard product operation
+ * 
+ * Sets gradient for arg1 and arg2 of the current Tensor (if they track their gradient)
+ * Uses the chain rule to calculate the gradient
+ * @param currentTensor The Tensor this function is called for
+ */
 static void hadamardGradient(Tensor* currentTensor) {
+    // cache args
+    Tensor* arg1 = currentTensor->getArg1();
+    Tensor* arg2 = currentTensor->getArg2();
 
+    // if a gradient is set the gradient calculations needs to factor in the gradient wrt to this tensor (chain rule)
+    if (currentTensor->isGradientSet()) {
+        // the gradient of the last computation in this computational graph wrt this Tensor
+        float* partialGradient = currentTensor->getGradient();
+
+        // calculate gradient, multiply with partialGradient, if gradient is tracked at all
+        if (arg1->getTrackGradient()) {
+            hadamard(arg1->getGradient(), arg2->getValue(), partialGradient, arg1->getShape());
+            arg1->changeGradientSet(true);
+        }
+
+        if (arg2->getTrackGradient()) {
+            hadamard(arg2->getGradient(), arg1->getValue(), partialGradient, arg1->getShape());
+            arg2->changeGradientSet(true);
+        }
+
+    } else {
+        if (arg1->getTrackGradient()) {
+            cudaMemDup(arg2->getValue(), arg1->getGradient(), arg1->getSize(), false);
+            arg1->changeGradientSet(true);
+        }
+
+        if (arg2->getTrackGradient()) {
+            cudaMemDup(arg1->getValue(), arg2->getGradient(), arg1->getSize(), false);
+            arg2->changeGradientSet(true);
+        }
+    }
 }
 
 Tensor* Tensor::hadamardProduct(Tensor &other) {
@@ -401,7 +524,7 @@ std::ostream& operator<<(std::ostream &s, const Tensor &tensor) {
 }
 
 void Tensor::printValue() const {
-    std::cout << this;
+    std::cout << *this;
 }
 
 void Tensor::printGradient() const {
@@ -454,25 +577,18 @@ Tensor::~Tensor() {
 
 
 int main() {
-    
-    Tensor* ten = new Tensor({2, 2}, true, 2322, xavier);
-    std::cout << *ten;
-    delete ten;
-    /*float* mem = constants(4, 2);
+    float* mem = constants(4, 2);
     Tensor* t1 = new Tensor(mem, {2, 2}, true);
     float mem2[6] = {0.0f, -2.0f, 3.0f, -4.0f};
     float* d_mem2;
     cudaMalloc(&d_mem2, 6*sizeof(float));
     cudaMemcpy(d_mem2, &mem2, 6 * sizeof(float), cudaMemcpyHostToDevice);
     Tensor* t2 = new Tensor(d_mem2, {2, 2}, true);
-    Tensor* t3 = t2->relu();
-    // t2->backward();
-    float host_result[6];
-    cudaMemcpy(host_result, t3->getValue(), 6 * sizeof(float), cudaMemcpyDeviceToHost);
-
-    for (int i=0; i<6; i++) {
-        std::cout << host_result[i] << " ";
-    }
+    Tensor* t3 = *t1 + *t2;
+    t3->backward();
+    std::cout << *t3;
+    t1->printGradient();
+    t2->printGradient();
 
     /*float h_bias[3] = {1.0f, -2.0f, 3.0f};
     float *bias;
