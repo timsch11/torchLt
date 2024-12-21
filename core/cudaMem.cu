@@ -1,6 +1,22 @@
 #include "curand_kernel.h"
 #include "util.cu"
 
+/**
+ * @brief returns pointer to allocated but uninitalized device float array of <size> (+ padding)
+ * @param size size of memory section
+ */
+float* reserveMemoryOnDevice(unsigned int size) {
+    // declare pointer
+    float* memoryAlloc;
+
+    // reserve actual space in memory, add some padding for thread efficiency
+    CHECK_CUDA_ERROR(cudaMalloc(&memoryAlloc, (size + BLOCK_SIZE - (size % BLOCK_SIZE)) * sizeof(float)));
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    // return pointer 
+    return memoryAlloc;
+}
+
 
 /**
  * @brief kernel for constant value initalization
@@ -22,8 +38,7 @@ float* zeros(unsigned int size) {
     std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
     // reserve memory
-    float* d_memoryAllocation;
-    CHECK_CUDA_ERROR(cudaMalloc(&d_memoryAllocation, blockThreadAllocation.first * blockThreadAllocation.second * sizeof(float)));
+    float* d_memoryAllocation = reserveMemoryOnDevice(blockThreadAllocation.first * blockThreadAllocation.second);
 
     // launch kernel
     __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_memoryAllocation, 0.0f);
@@ -44,8 +59,7 @@ float* constants(unsigned int size, float constant) {
     std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
     // reserve memory
-    float* d_memoryAllocation;
-    CHECK_CUDA_ERROR(cudaMalloc(&d_memoryAllocation, blockThreadAllocation.first * blockThreadAllocation.second * sizeof(float)));  // blockThreadAllocation.first * blockThreadAllocation.second = size + padding
+    float* d_memoryAllocation = reserveMemoryOnDevice(size);
 
     // launch kernel
     __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_memoryAllocation, constant);
@@ -68,6 +82,7 @@ void constants(float* d_value, unsigned int size, float constant) {
 
     // launch kernel
     __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_value, constant);
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     CHECK_CUDA_ERROR(cudaGetLastError()); 
 }
 
@@ -125,22 +140,6 @@ void cudaMemDup(float* d_source, float* d_destination, unsigned int size, bool t
 
     // error checking 
     CHECK_CUDA_ERROR(cudaGetLastError());
-}
-
-/**
- * @brief returns pointer to allocated but uninitalized device float array of <size> (+ padding)
- * @param size size of memory section
- */
-float* reserveMemoryOnDevice(unsigned int size) {
-    // declare pointer
-    float* memoryAlloc;
-
-    // reserve actual space in memory, add some padding for thread efficiency
-    CHECK_CUDA_ERROR(cudaMalloc(&memoryAlloc, (size + (size % BLOCK_SIZE)) * sizeof(float)));
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
-    // return pointer 
-    return memoryAlloc;
 }
 
 // WEIGHT INITIALIZATION FUNCTIONS
