@@ -12,7 +12,7 @@
  * @param d_tensor1 pointer to tensor1
  * @param d_tensor2 pointer to tensor2
  */
-__global__ void addTensorEntries(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2) {
+__global__ void __addTensorEntries(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     d_targetMemorySpace[idx] = d_tensor1[idx] + d_tensor2[idx];
 }
@@ -37,7 +37,7 @@ cudaError_t tensoradd(float* d_targetMemorySpace, float* d_tensor1, unsigned int
 
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(tensorSize1);
     
-    addTensorEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor1, d_tensor2);
+    __addTensorEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor1, d_tensor2);
     return cudaGetLastError();
 }
 
@@ -52,7 +52,7 @@ cudaError_t tensoradd(float* d_targetMemorySpace, float* d_tensor1, unsigned int
  * @param d_vec2 Pointer to the second input vector.
  * @param ind Index of the element to be processed by the current thread.
 */
-__global__ void subtractVecEntries(float* d_targetMemorySpace, float* d_vec1, float* d_vec2) {
+__global__ void __subtractVecEntries(float* d_targetMemorySpace, float* d_vec1, float* d_vec2) {
     int ind = blockIdx.x * blockDim.x + threadIdx.x;
     d_targetMemorySpace[ind] = d_vec1[ind] - d_vec2[ind];
 }
@@ -82,7 +82,7 @@ cudaError_t vecsub(float* d_targetMemorySpace, float* d_vector1, unsigned int ve
 
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(vectorSize1);
     
-    subtractVecEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector1, d_vector2);
+    __subtractVecEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector1, d_vector2);
 
     return cudaGetLastError();
 }
@@ -100,7 +100,7 @@ cudaError_t vecsub(float* d_targetMemorySpace, float* d_vector1, unsigned int ve
  * @note The kernel assumes that the input arrays are properly allocated and have
  *       sufficient size for the number of threads being launched
  */
-__global__ void scaleEntries(float* d_targetMemorySpace, float* d_tensor, float scalar) {
+__global__ void __scaleEntries(float* d_targetMemorySpace, float* d_tensor, float scalar) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     d_targetMemorySpace[idx] = d_tensor[idx] * scalar;
 }
@@ -122,7 +122,7 @@ cudaError_t scaletensor(float* d_targetMemorySpace, float* d_tensor, unsigned in
 
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(tensorSize);
     
-    scaleEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor, scalar);
+    __scaleEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor, scalar);
     return cudaGetLastError();
 }
 
@@ -141,7 +141,7 @@ cudaError_t scaletensor(float* d_targetMemorySpace, float* d_tensor, unsigned in
  * @note The function doesn't perform bounds checking - proper grid and block dimensions
  *       must be set by the caller.
  */
-__global__ void hadamard_kernel(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2) {
+__global__ void __hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2) {
     int ind = blockIdx.x * blockDim.x + threadIdx.x;
     d_targetMemorySpace[ind] = d_tensor1[ind] * d_tensor2[ind];
 }
@@ -168,7 +168,7 @@ cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tens
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
     
     // let kernel do its work
-    hadamard_kernel<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor1, d_tensor2);
+    __hadamard<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor1, d_tensor2);
 
     // return error
     return cudaGetLastError();

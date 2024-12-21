@@ -14,7 +14,7 @@
  * @note Each thread processes one element of the input vector
  * @warning Assumes that the memory is already allocated and the array sizes match
  */
-__global__ void reluGrad_kernel(float* targetMemorySpace, float* vector) {
+__global__ void __reluGrad(float* targetMemorySpace, float* vector) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (vector[i] > 0) {
         targetMemorySpace[i] = 1;
@@ -40,7 +40,7 @@ cudaError_t reluGrad(float* targetMemorySpace, float* vector, unsigned int size)
     // compute optimal block/thread distribution
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
 
-    reluGrad_kernel<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(targetMemorySpace, vector);
+    __reluGrad<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(targetMemorySpace, vector);
 
     return cudaGetLastError();
 }
