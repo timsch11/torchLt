@@ -127,6 +127,12 @@ class Tensor {
          */
         float* getGradient() const;
         /**
+         * @brief Gets the pointer to the tensor's gradient data on CPU memory
+         * @return float* Pointer to the tensor's value data stored on host (CPU) memory
+         * @note take care of the deletion since the return value is a pointer
+         */
+        float* getGradientCPU() const;
+        /**
          * @brief Get the number of rows in the tensor
          * @return unsigned int - number of rows
          */
@@ -220,13 +226,13 @@ class Tensor {
          * @param other The tensor to compare shape with
          * @return true if shapes are identical, false otherwise
          */
-        bool sameShape(Tensor other);
+        bool sameShape(Tensor other) const;
         /**
          * @brief Checks if this tensor can be matrix multiplied with another tensor
          * @param other The tensor to check matrix multiplication compatibility with
          * @return true if tensors can be matrix multiplied, false otherwise
          */
-        bool matMulCompatible(Tensor other);
+        bool matMulCompatible(Tensor other) const;
 
         // MATH
 
@@ -300,10 +306,23 @@ class Tensor {
          * @return Pointer to new tensor containing the Hadamard product
          */
         Tensor* operator%(Tensor &other);
+
+        // PRINTING
+
         /**
          * @brief Returns stream representing the shape and value of the current Tensor
          */
         friend std::ostream& operator<<(std::ostream &s, const Tensor &tensor);
+
+        /**
+         * @brief prints stream representing the shape and value of the current Tensor's value
+         */
+        void printValue() const;
+
+        /**
+         * @brief prints stream representing the shape and value of the current Tensor's gradient
+         */
+        void printGradient() const;
 
         // ACTIVATION
 

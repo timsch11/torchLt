@@ -155,6 +155,16 @@ float* Tensor::getGradient() const {
     return this->d_gradient;
 }
 
+float* Tensor::getGradientCPU() const {
+    // initalize float array on host 
+    float* host_gradient = (float*) malloc(this->getSize() * sizeof(float));
+
+    // copy data, check for errors
+    CHECK_CUDA_ERROR(cudaMemcpy(host_gradient, this->getGradient(), this->getSize() * sizeof(float), cudaMemcpyDeviceToHost));
+    
+    return host_gradient;
+}
+
 unsigned int Tensor::getShapeX() const {
     return this->shape.first;
 }
@@ -239,12 +249,12 @@ void Tensor::backward() {
     }
 }
 
-bool Tensor::sameShape(Tensor other) {
+bool Tensor::sameShape(Tensor other) const {
     // returns true if tensors are of same shape
     return (this->getShapeX() == other.getShapeX()) && (this->getShapeY() == other.getShapeY());
 }
 
-bool Tensor::matMulCompatible(Tensor other) {
+bool Tensor::matMulCompatible(Tensor other) const {
     // returns true if matrices are compatible for matmul
     return this->getShapeY() == other.getShapeX();
 }
@@ -390,14 +400,22 @@ std::ostream& operator<<(std::ostream &s, const Tensor &tensor) {
     return s << std::endl;
 }
 
+void Tensor::printValue() const {
+    std::cout << this;
+}
+
+void Tensor::printGradient() const {
+    
+}
+
 // frees memory associated with this tensor and manages the cuBlas handle, be aware that this impacts the gradient calculation of preceding operations
 Tensor::~Tensor() {
-    
+
     // free occupied memory
     cudaFree(d_value);
     cudaFree(d_gradient);
 
-    // cuBlas handle
+    // decrement activeTensors counter and manages cuBlas handle
     activeTensors--;
     if (activeTensors == 0) {
         destroy_cuBlas();
@@ -406,8 +424,10 @@ Tensor::~Tensor() {
 
 
 int main() {
-    Tensor ten = Tensor({2, 2}, true, 2322, xavier);
-    std::cout << ten;
+    
+    Tensor* ten = new Tensor({2, 2}, true, 2322, xavier);
+    std::cout << *ten;
+    delete ten;
     /*float* mem = constants(4, 2);
     Tensor* t1 = new Tensor(mem, {2, 2}, true);
     float mem2[6] = {0.0f, -2.0f, 3.0f, -4.0f};
