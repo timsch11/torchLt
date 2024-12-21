@@ -405,7 +405,37 @@ void Tensor::printValue() const {
 }
 
 void Tensor::printGradient() const {
-    
+    // example
+    /* shape=(3, 3)
+        1 2 3
+        4 5 6
+        7 8 9 
+    */
+
+    // add shape tuple to stream: first line
+    std::cout << "shape=(" << this->getShapeX() << "," << this->getShapeY() << ")" << std::endl;
+
+    // cache frequently used attributes as local variables
+    unsigned int size = this->getSize();
+    unsigned int rowSize = this->getShapeY();
+
+    // load copy of value (residing on GPU) to CPU to properly access values
+    float* grad = this->getGradientCPU();
+
+    // print matrix in row major format
+    for (unsigned int ind=0; ind<size; ind++) {
+
+        // add linebreak before printing next row
+        if (ind % rowSize == 0) {
+            std::cout << std::endl;
+        }
+
+        // append current entry
+        std::cout << grad[ind] << " ";
+    }
+
+    // free CPU copy of values
+    free(grad);
 }
 
 // frees memory associated with this tensor and manages the cuBlas handle, be aware that this impacts the gradient calculation of preceding operations
