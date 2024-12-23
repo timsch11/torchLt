@@ -7,6 +7,7 @@
 
 // ACTIVATION FUNCTIONS
 
+
 /**
  * @brief Applies ReLU (Rectified Linear Unit) activation function element-wise to a vector
  * 
@@ -67,7 +68,96 @@ float* reluAlloc(float* d_vector, unsigned int size) {
     return result;
 }
 
+/**
+ * @brief Kernel that applies the sigmoid function element wise to a tensor
+ * @param d_targetMemorySpace Pointer to memory section where result should go
+ * @param d_tensor Input tensor
+ */
+__global__ void __sigmoid(float* d_targetMemorySpace, float* d_tensor) {
+    unsigned int ind = blockIdx.x * blockDim.x + threadIdx.x;
+    d_targetMemorySpace[ind] = 1.0f / (1.0f + expf(-d_tensor[ind]));
+}
+
+/**
+ * @brief Applies the sigmoid function to every element of d_tensor, stores result in d_targetMemorySpace
+ * @param d_targetMemorySpace Pointer to memory section where result should go
+ * @param d_tensor Input tensor
+ * @param size Size of tensor
+ * @return cudaSuccess_t or error
+ */
+cudaError_t sigmoid(float* d_targetMemorySpace, float* d_tensor, unsigned int size) {
+    // compute optimal block/thread distribution
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
+
+    // execute computation
+    __sigmoid<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor);
+
+    // return cudaSuccess_t or error
+    return cudaGetLastError();
+}
+
+/**
+ * @brief Applies the sigmoid function to every element of d_tensor, stores result in newly allocated memory section
+ * @param d_tensor Input tensor
+ * @param size Size of tensor
+ * @return Pointer to newly allocated memory section that holds result
+ */
+float* sigmoidAlloc(float* d_tensor, unsigned int size) {
+    // allocate required memory (+padding)
+    float* d_result = reserveMemoryOnDevice(size);
+
+    // check for errors
+    CHECK_CUDA_ERROR(sigmoid(d_result, d_tensor, size));
+
+    return d_result;
+}
+
+/**
+ * @brief Kernel that applies the tanh function element wise to a tensor
+ * @param d_targetMemorySpace Pointer to memory section where result should go
+ * @param d_tensor Input tensor
+ */
+__global__ void __tanh(float* d_targetMemorySpace, float* d_tensor) {
+    unsigned int ind = blockIdx.x * blockDim.x + threadIdx.x;
+    d_targetMemorySpace[ind] = 1.0f - (2.0f / (expf(2.0f * d_tensor[ind]) + 1));
+}
+
+/**
+ * @brief Applies the tanh function to every element of d_tensor, stores result in d_targetMemorySpace
+ * @param d_targetMemorySpace Pointer to memory section where result should go
+ * @param d_tensor Input tensor
+ * @param size Size of tensor
+ * @return cudaSuccess_t or error
+ */
+cudaError_t tanh(float* d_targetMemorySpace, float* d_tensor, unsigned int size) {
+    // compute optimal block/thread distribution
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
+
+    // execute computation
+    __tanh<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor);
+
+    // return cudaSuccess_t or error
+    return cudaGetLastError();
+}
+
+/**
+ * @brief Applies the tanh function to every element of d_tensor, stores result in newly allocated memory section
+ * @param d_tensor Input tensor
+ * @param size Size of tensor
+ * @return Pointer to newly allocated memory section that holds result
+ */
+float* tanhAlloc(float* d_tensor, unsigned int size) {
+    // allocate required memory (+padding)
+    float* d_result = reserveMemoryOnDevice(size);
+
+    // check for errors
+    CHECK_CUDA_ERROR(tanh(d_result, d_tensor, size));
+
+    return d_result;
+}
+
 // WEIGHT INITIALIZATION
+
 
 /**
  * @brief Initializes weights using the Kaiming He initialization method.
@@ -187,8 +277,7 @@ float* tensoraddAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vecto
 
     // return pointer to result
     return d_result;
-
-} // TOBEOPTIMIZED
+}
 
 /**
  * @brief Subtracts two vectors element-wise and allocates memory for the result on device
@@ -221,5 +310,4 @@ float* tensorsubAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vecto
 
     // return pointer to result
     return d_result;
-
-} // TOBEOPTIMIZED
+}

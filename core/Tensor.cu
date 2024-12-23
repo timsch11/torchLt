@@ -483,10 +483,23 @@ Tensor* Tensor::operator%(Tensor &other) {
 
 // activation functions
 
+/**
+ * @brief Computes the gradient of the ReLU activation function for the given tensor.
+ *
+ * This function calculates the gradient of the ReLU activation function and stores it
+ * in the gradient attribute of the tensor. It also sets the gradientSet flag to true
+ * to indicate that the gradient has been computed and stored.
+ *
+ * @param currentTensor Pointer to the tensor for which the ReLU gradient is to be computed.
+ */
 static void reluGradient(Tensor* currentTensor) {
+    // cache arg1
     Tensor* tensorGrad = currentTensor->getArg1();
-    std::pair<unsigned int, unsigned int> shape = tensorGrad->getShape();
-    reluGrad(tensorGrad->getGradient(), tensorGrad->getValue(), shape.first * shape.second);
+
+    // compute gradient store in tensor's gradient attribute
+    reluGrad(tensorGrad->getGradient(), tensorGrad->getValue(), tensorGrad->getSize());
+
+    // set gradientSet flag
     tensorGrad->changeGradientSet(true);
 }
 
@@ -494,6 +507,64 @@ Tensor* Tensor::relu() {
     float* d_tensorValue = reluAlloc(this->getValue(), this->getSize());
     return new Tensor(d_tensorValue, this->getShape(), true, reluGradient, this, this->getShape());
 }
+
+/**
+ * @brief Computes the gradient of the sigmoid activation function for the given tensor.
+ *
+ * This function calculates the gradient of the sigmoid activation function and stores it
+ * in the gradient attribute of the tensor. It also sets the gradientSet flag to true
+ * to indicate that the gradient has been computed and stored.
+ *
+ * @param currentTensor Pointer to the tensor for which the sigmoid gradient is to be computed.
+ */
+static void sigmoidGradient(Tensor* currentTensor) {
+    // cache arg1
+    Tensor* tensorGrad = currentTensor->getArg1();
+
+    // compute gradient store in tensor's gradient attribute, pass currentTensor's value for simplifying computation
+    sigmoidGrad(tensorGrad->getGradient(), currentTensor->getValue(), tensorGrad->getSize());
+
+    // set gradientSet flag
+    tensorGrad->changeGradientSet(true);
+}
+
+Tensor* Tensor::sigmoid() {
+    // compute sigmoid func store result in newly allocated memory section and return pointer to it
+    float* d_sigmoidValue = sigmoidAlloc(this->getValue(), this->getSize());
+
+    // return new tensor that has holds result of the sigmoid function as a value and corresponding shape and gradient function
+    return new Tensor(d_sigmoidValue, this->getShape(), true, sigmoidGradient, this, this->getShape());
+}
+
+/**
+ * @brief Computes the gradient of the tanh activation function for the given tensor.
+ *
+ * This function calculates the gradient of the tanh activation function and stores it
+ * in the gradient attribute of the tensor. It also sets the gradientSet flag to true
+ * to indicate that the gradient has been computed and stored.
+ *
+ * @param currentTensor Pointer to the tensor for which the tanh gradient is to be computed.
+ */
+static void tanhGradient(Tensor* currentTensor) {
+    // cache arg1
+    Tensor* tensorGrad = currentTensor->getArg1();
+
+    // compute gradient store in tensor's gradient attribute, pass currentTensor's value for simplifying computation
+    tanhGrad(tensorGrad->getGradient(), currentTensor->getValue(), tensorGrad->getSize());
+
+    // set gradientSet flag
+    tensorGrad->changeGradientSet(true);
+}
+
+Tensor* Tensor::tanh() {
+    // compute tanh func store result in newly allocated memory section and return pointer to it
+    float* d_tanhValue = tanhAlloc(this->getValue(), this->getSize());
+
+    // return new tensor that holds the result of the tanh function as a value and corresponding shape and gradient function
+    return new Tensor(d_tanhValue, this->getShape(), true, tanhGradient, this, this->getShape());
+}
+
+// PRINTING
 
 std::ostream& operator<<(std::ostream &s, const Tensor &tensor) {
 
@@ -591,14 +662,26 @@ int main() {
     Tensor* t1 = new Tensor(mem, {2, 2}, true);
     float* mem2 = constants(4, -5);
     Tensor* t2 = new Tensor(mem2, {2, 2}, true);
-    float* mem3 = constants(4, -2);
-    Tensor* t4 = new Tensor(mem3, {2, 2}, true);
-    Tensor* t3 = *t1 - *t2;
-    Tensor* t5 = *t3 % *t4;
+    // float* mem3 = constants(4, -2);
+    // Tensor* t4 = new Tensor(mem3, {2, 2}, true);
+    // Tensor* t3 = *t1 - *t2;
+    // Tensor* t5 = *t3 % *t4;
 
+    Tensor* t4 = t1->tanh();
+    Tensor* t5 = t2->sigmoid();
+
+    t4->backward();
+    t5->backward();
+
+    t4->printValue();
     t5->printValue();
 
-    t5->backward();
+    t1->printGradient();
+    t2->printGradient();
+
+    delete t1, t2, t4, t5;
+
+    /*t5->backward();
 
     t5->printValue();
     t3->printValue();

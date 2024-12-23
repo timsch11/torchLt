@@ -14,12 +14,12 @@
  * @note Each thread processes one element of the input vector
  * @warning Assumes that the memory is already allocated and the array sizes match
  */
-__global__ void __reluGrad(float* targetMemorySpace, float* vector) {
+__global__ void __reluGrad(float* d_targetMemorySpace, float* d_vector) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (vector[i] > 0) {
-        targetMemorySpace[i] = 1;
+    if (d_vector[i] > 0) {
+        d_targetMemorySpace[i] = 1;
     } else {
-        targetMemorySpace[i] = 0;
+        d_targetMemorySpace[i] = 0;
     }
 }
 
@@ -36,27 +36,84 @@ __global__ void __reluGrad(float* targetMemorySpace, float* vector) {
  * 
  * @return cudaError_t Returns any CUDA errors that occurred during kernel execution
  */
-cudaError_t reluGrad(float* targetMemorySpace, float* vector, unsigned int size) {
+cudaError_t reluGrad(float* d_targetMemorySpace, float* d_vector, unsigned int size) {
     // compute optimal block/thread distribution
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
 
-    __reluGrad<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(targetMemorySpace, vector);
+    // execute computation
+    __reluGrad<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector);
 
     return cudaGetLastError();
 }
 
+/**
+ * @brief CUDA kernel function to compute the gradient of the sigmoid function.
+ *
+ * This kernel computes the gradient of the sigmoid function for each element in the input tensor.
+ * The result is stored in the target memory space.
+ *
+ * @param d_targetMemorySpace Pointer to the device memory where the result will be stored.
+ * @param d_tensor Pointer to the device memory containing the input tensor.
+ */
+__global__ void __sigmoidGrad(float* d_targetMemorySpace, float* d_tensor) {
+    int ind = blockIdx.x * blockDim.x + threadIdx.x;
+    float val = d_tensor[ind];
+    d_targetMemorySpace[ind] = val * (1 - val);
+}
 
-/*int main() {
-    float h_bias[3] = {1.0f, -2.0f, 3.0f};
-    float *bias;
-    cudaMalloc(&bias, 3 * sizeof(float));
-    cudaMemcpy(bias, h_bias, 3 * sizeof(float), cudaMemcpyHostToDevice);
+/**
+ * @brief Launches the CUDA kernel to compute the gradient of the sigmoid function.
+ *
+ * This function computes the optimal block and thread distribution, and then launches the
+ * __sigmoidGrad kernel to compute the gradient of the sigmoid function for each element in the input tensor.
+ *
+ * @param d_targetMemorySpace Pointer to the device memory where the result will be stored.
+ * @param d_tensor Pointer to the device memory containing the input tensor.
+ * @param size The number of elements in the input tensor.
+ * @return cudaError_t Returns the error that occurred during the kernel launch or cudaSuccess_t
+ */
+cudaError_t sigmoidGrad(float* d_targetMemorySpace, float* d_tensor, unsigned int size) {
+    // compute optimal block/thread distribution
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
 
-    reluGrad(bias, bias, 3);
+    // execute computation
+    __sigmoidGrad<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor);
 
-    cudaMemcpy(h_bias, bias, 3*sizeof(float), cudaMemcpyDeviceToHost);
+    return cudaGetLastError();
+}
 
-    for (int i=0; i<3; i++) {
-        std::cout << h_bias[i] << " ";
-    }
-}*/
+/**
+ * @brief CUDA kernel function to compute the gradient of the tanh function.
+ *
+ * This kernel computes the gradient of the tanh function for each element in the input tensor.
+ * The result is stored in the target memory space.
+ *
+ * @param d_targetMemorySpace Pointer to the device memory where the result will be stored.
+ * @param d_tensor Pointer to the device memory containing the input tensor.
+ */
+__global__ void __tanhGrad(float* d_targetMemorySpace, float* d_tensor) {
+    int ind = blockIdx.x * blockDim.x + threadIdx.x;
+    float val = d_tensor[ind];
+    d_targetMemorySpace[ind] = 1 - (val*val);
+}
+
+/**
+ * @brief Launches the CUDA kernel to compute the gradient of the tanh function.
+ *
+ * This function computes the optimal block and thread distribution, and then launches the
+ * __tanhGrad kernel to compute the gradient of the tanh function for each element in the input tensor.
+ *
+ * @param d_targetMemorySpace Pointer to the device memory where the result will be stored.
+ * @param d_tensor Pointer to the device memory containing the input tensor.
+ * @param size The number of elements in the input tensor.
+ * @return cudaError_t Returns the error that occurred during the kernel launch or cudaSuccess_t
+ */
+cudaError_t tanhGrad(float* d_targetMemorySpace, float* d_tensor, unsigned int size) {
+    // compute optimal block/thread distribution
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
+
+    // execute computation
+    __tanhGrad<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor);
+
+    return cudaGetLastError();
+}
