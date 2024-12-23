@@ -331,4 +331,14 @@ class Tensor {
          * @return Pointer to new tensor with ReLU applied
          */
         Tensor* relu();
+        /**
+         * @brief Applies sigmoid activation function element-wise
+         * @return Pointer to new tensor with sigmoid applied
+         */
+        Tensor* sigmoid();
+        /**
+         * @brief Applies tanh activation function element-wise
+         * @return Pointer to new tensor with tanh applied
+         */
+        Tensor* tanh();
 };
