@@ -76,7 +76,7 @@ delete t2;
 delete t3;
 ```
 
-## How to compile?
+## How to compile your files
 
 ```
 nvcc example.cu -o example.exe -lTensor -lcublas
