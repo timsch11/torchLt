@@ -1,6 +1,4 @@
 #include "Tensor.h"
-#include <stdexcept>
-#include "cudaNN.cu"
 
 
 cublasHandle_t* handle = nullptr;
@@ -382,8 +380,70 @@ Tensor* Tensor::operator-(Tensor &other) {
     return this->sub(other);
 }
 
+/**
+ * @brief Computes the gradient of a matrix multiplication (C = A * B) wrt to A and B
+ * @param Pointer to the current tensor whose gradient is being computed
+ */
 static void multiplicationGradient(Tensor* currentTensor) {
+    // set scalars for sgemm call
+    float alpha = 1.0f, beta = 0.0f;
 
+    // cache tensors
+    Tensor* A = currentTensor->getArg1();
+    Tensor* B = currentTensor->getArg2();
+
+    // cache shapes
+    int m = A->getShapeX(), n = A->getShapeY(), p = B->getShapeY();
+
+    // gradOut_currTensor = gradient of output of this computational graph wrt to this Tensor
+    float* gradOut_currTensor = nullptr;
+
+    if (!currentTensor->isGradientSet()) {
+        /* this tensors gradient is not set => we started to differentiate from here so no need to apply the chain rule (saves a multiplication with Identity matrix) */
+        // dA = I * B^T = B^T
+        if (A->getTrackGradient()) {
+            cudaMemDup(B->getValue(), A->getGradient(), B->getSize(), true);  // size of B = size of B^T (size=#entries)
+            A->changeGradientSet(true);
+        }
+
+        // dB = A^T * I = A^T
+        if (B->getTrackGradient()) {
+            cudaMemDup(A->getValue(), B->getGradient(), A->getSize(), true);
+            A->changeGradientSet(true);
+        }
+
+    } else {
+        // gradOut_currTensor is gradient of current tensor
+        gradOut_currTensor = currentTensor->getGradient();
+
+        // dA = gradOut_currTensor * B^T
+        if (A->getTrackGradient()) {
+            cublasSgemm_v2(
+                *handle, CUBLAS_OP_N, CUBLAS_OP_T,
+                m, n, p,
+                &alpha,
+                gradOut_currTensor, m,
+                B->getValue(), B->getShapeX(),
+                &beta,
+                A->getGradient(), m
+            );
+            A->changeGradientSet(true);
+        }
+
+        // dB = A^T * gradOut_currTensor
+        if (B->getTrackGradient()) {
+            cublasSgemm_v2(
+                *handle, CUBLAS_OP_T, CUBLAS_OP_N,
+                n, p, m,
+                &alpha,
+                A->getValue(), m,
+                gradOut_currTensor, m,
+                &beta,
+                B->getGradient(), n
+            );
+            B->changeGradientSet(true);
+        }
+    }
 }
 
 Tensor* Tensor::matmul(Tensor &other) {
@@ -646,8 +706,16 @@ void Tensor::printGradient() const {
 Tensor::~Tensor() {
 
     // free occupied memory
-    cudaFree(d_value);
-    cudaFree(d_gradient);
+    if (this->d_value != nullptr) {
+        std::cout << this->d_value;
+        CHECK_CUDA_ERROR(cudaFree(this->d_value));
+        d_value = nullptr;
+    }
+
+    if (this->d_gradient != nullptr) {
+        CHECK_CUDA_ERROR(cudaFree(this->d_gradient));
+        d_gradient = nullptr;
+    }
 
     // decrement activeTensors counter and manages cuBlas handle
     activeTensors--;
@@ -657,7 +725,7 @@ Tensor::~Tensor() {
 }
 
 
-int main() {
+/*int main() {
     float* mem = constants(4, 2);
     Tensor* t1 = new Tensor(mem, {2, 2}, true);
     float* mem2 = constants(4, -5);
@@ -667,19 +735,17 @@ int main() {
     // Tensor* t3 = *t1 - *t2;
     // Tensor* t5 = *t3 % *t4;
 
-    Tensor* t4 = t1->tanh();
-    Tensor* t5 = t2->sigmoid();
+    Tensor* t4 = *t1 * *t2;
 
     t4->backward();
-    t5->backward();
-
     t4->printValue();
-    t5->printValue();
 
     t1->printGradient();
     t2->printGradient();
 
-    delete t1, t2, t4, t5;
+    delete t1;
+    delete t2;
+    delete t4;
 
     /*t5->backward();
 
@@ -763,4 +829,4 @@ int main() {
     cudaFree(inp);
     
     return 0;*/
-}
+//}

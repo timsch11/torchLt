@@ -1,5 +1,18 @@
+#ifndef TENSOR
+#define TENSOR
+
+
+#include <cuda_runtime.h>
 #include "cublas_v2.h"
+
+#include <string>
+#include <utility>
+
 #include <iostream>
+#include <stdexcept>
+
+#include "cuda/cudaNN.cuh"
+
 
 class Tensor {
 
@@ -342,3 +355,5 @@ class Tensor {
          */
         Tensor* tanh();
 };
+
+#endif
