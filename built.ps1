@@ -1,8 +1,12 @@
+# change dir but save current dir to go back later
+$INITIAL_LOCATION = Get-Location
+Set-Location $PSScriptRoot
+
 # Make built directory
 mkdir built
-cd built 
+Set-Location built 
 mkdir Tensorlib
-cd ..
+Set-Location ..
 
 # Compile source files to objects
 $INCLUDE_PATH = "/core"
@@ -17,3 +21,6 @@ nvcc -c core/cuda/cudaNN.cu -o built/Tensorlib/cudann.obj -I"$INCLUDE_PATH"
 
 # Create static library
 nvcc -lib built/Tensorlib/util.obj built/Tensorlib/factory.obj built/Tensorlib/tensor.obj built/Tensorlib/cudadif.obj built/Tensorlib/cudamath.obj built/Tensorlib/cudamem.obj built/Tensorlib/cudann.obj -o Tensor.lib
+
+# go back to inital dir
+Set-Location $INITIAL_LOCATION
