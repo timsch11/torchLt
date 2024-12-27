@@ -19,14 +19,20 @@ This library provides a robust implementation of tensor operations with automati
 ## Key Features
 
 - GPU-accelerated tensor operations
-- Automatic differentiation with computational graph support
+- Automatic differentiation by computational graph tracking
 - Dynamic memory management
-- Concurrent execution using CUDA streams
+- Tensor math operations
 - Common neural network operations:
-    - Matrix multiplication
-    - Element-wise operations (addition, subtraction)
     - Activation functions (ReLU, Sigmoid, Tanh)
     - Weight initialization (Kaiming He, Xavier)
+ 
+## Tensor Operations:
+
+- matrix multiplication (cuBLAS sgemm)
+- addition/subtraction (custom kernels)
+- hadamard product (custom kernel)
+- activation functions (custom kernels)
+- several memory operations like transpose copying (custom kernels)
 
 ## Requirements
 
