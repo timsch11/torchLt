@@ -25,7 +25,7 @@ void init_cuBlas() {
             delete handle;
             handle = nullptr;
 
-            throw std::runtime_error("cuBLAS initialization failed" + std::string(cublasGetStatusString(createStatus)));
+            throw std::runtime_error(std::string("cuBLAS initialization failed: ") + cublasGetStatusString(createStatus));
         }
     }
 }

@@ -35,13 +35,13 @@ int main() {
         t4->backward();
 
         // Print the gradients of t4 with respect to t1, t2, and t5
-        std::cout << "Gradient of t4 with respect to t1";
+        std::cout << "\nGradient of t4 with respect to t1:";
         t1->printGradient();
 
-        std::cout << "Gradient of t4 with respect to t2";
+        std::cout << "\nGradient of t4 with respect to t2:";
         t2->printGradient();
 
-        std::cout << "Gradient of t4 with respect to t5";
+        std::cout << "\nGradient of t4 with respect to t5:";
         t5->printGradient();
         
         // Clean up and free the allocated memory for tensors
