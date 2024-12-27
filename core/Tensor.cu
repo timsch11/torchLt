@@ -25,7 +25,7 @@ void init_cuBlas() {
             delete handle;
             handle = nullptr;
 
-            throw std::runtime_error("cuBLAS initialization failed" + (std::string) cublasGetStatusString(createStatus));
+            throw std::runtime_error("cuBLAS initialization failed" + std::string(cublasGetStatusString(createStatus)));
         }
     }
 }
@@ -475,7 +475,7 @@ Tensor* Tensor::matmul(Tensor &other) {
         );
         
         if (matmulStatus != CUBLAS_STATUS_SUCCESS) {
-            throw std::runtime_error("matrix multiplication failed: " + (std::string) cublasGetStatusString(matmulStatus));
+            throw std::runtime_error("matrix multiplication failed: " + std::string(cublasGetStatusString(matmulStatus)));
         }
 
         // return result as a new Tensor
