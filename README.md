@@ -2,6 +2,16 @@
 
 A high-performance tensor computation library implemented in CUDA C++ for GPU acceleration.
 
+# Note:
+
+Even though the core library is largely done, there are still some topics to address:
+- optimize synchronization
+- some more testing
+
+Further feature I want to add in the future:
+- cython wrapper
+- loss functions
+
 ## Overview
 
 This library provides a robust implementation of tensor operations with automatic differentiation support, making it suitable for deep learning applications. The library is built with CUDA to leverage GPU acceleration for compute-intensive operations.
@@ -77,7 +87,3 @@ nvcc example.cu -o example.exe -lTensor -lcublas
         - `cudaDif.cuh/cu`: Gradient computation
         - `cudaNN.cuh/cu`: Neural network operations
         - `util.cuh/cu`: Utility functions
-
-## License
-
-This project is provided as-is under an open-source license.
