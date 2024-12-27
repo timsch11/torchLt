@@ -707,7 +707,6 @@ Tensor::~Tensor() {
 
     // free occupied memory
     if (this->d_value != nullptr) {
-        std::cout << this->d_value;
         CHECK_CUDA_ERROR(cudaFree(this->d_value));
         d_value = nullptr;
     }
