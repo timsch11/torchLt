@@ -1,6 +1,14 @@
 *.exp
 *.lib
 *.exe
+*.dll
+*.pyd
+*__pycache__
+*build
+*built
 .vscode
 b.cu
+venv
 TODO
+
+wrapper.cpp
