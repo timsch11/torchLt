@@ -86,8 +86,8 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
     // cudaStream_t graphStream
     // cudaStream_t nodeStream = 
 
-    if (track_gradient) {
-        d_gradient = reserveMemoryOnDevice(_shape.first * _shape.second);
+    if (_track_gradient) {
+        this->d_gradient = reserveMemoryOnDevice(_shape.first * _shape.second);
     }
 }
 
@@ -138,10 +138,16 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
 // basic functions
 
 float* Tensor::getValue() const {
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    
     return this->d_value;
 }
 
 float* Tensor::getValueCPU() const {
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // initalize float array on host 
     float* host_value = (float*) malloc(this->getSize() * sizeof(float));
 
@@ -152,10 +158,16 @@ float* Tensor::getValueCPU() const {
 }
 
 float* Tensor::getGradient() const {
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     return this->d_gradient;
 }
 
 float* Tensor::getGradientCPU() const {
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // initalize float array on host 
     float* host_gradient = (float*) malloc(this->getSize() * sizeof(float));
 
@@ -244,6 +256,9 @@ void Tensor::setGraphStreamForSubgraph(cudaStream_t* _graphStream) {
 }
 
 void Tensor::backward() {
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // skip if either gradient tracking is disabled or there are no preceding calculations
     if (this->getTrackGradient() && !this->isLeaf()) {
         this->gradFunction(this);
@@ -289,6 +304,9 @@ static void additionGradient(Tensor* currentTensor) {
     Tensor* arg1 = currentTensor->getArg1();
     Tensor* arg2 = currentTensor->getArg2();
 
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // copy gradient of this Tensor (and multply by I, neglected)
     if (currentTensor->isGradientSet()) {
 
@@ -320,6 +338,9 @@ static void additionGradient(Tensor* currentTensor) {
 
 // adds tensor values up and stores result in new Tensor, returns pointer to Tensor that holds result of addition if shapes match, otherwise prints error message and returns nullpointer
 Tensor* Tensor::add(Tensor &other) {
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     float* d_result = tensoraddAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
     return new Tensor(d_result, this->getShape(), true, &additionGradient, this, this->getShape(), &other, other.getShape());
 }
@@ -342,6 +363,9 @@ static void subtractionGradient(Tensor* currentTensor) {
     // cache args
     Tensor* arg1 = currentTensor->getArg1();
     Tensor* arg2 = currentTensor->getArg2();
+
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // copy gradient of this Tensor (and multply by I, neglected)
     if (currentTensor->isGradientSet()) {
@@ -372,6 +396,9 @@ static void subtractionGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::sub(Tensor &other) {
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     float* d_result = tensorsubAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
     return new Tensor(d_result, this->getShape(), true, &subtractionGradient, this, this->getShape(), &other, other.getShape());
 }
@@ -391,6 +418,9 @@ static void multiplicationGradient(Tensor* currentTensor) {
     // cache tensors
     Tensor* A = currentTensor->getArg1();
     Tensor* B = currentTensor->getArg2();
+
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // cache shapes
     int m = A->getShapeX(), n = A->getShapeY(), p = B->getShapeY();
@@ -430,6 +460,9 @@ static void multiplicationGradient(Tensor* currentTensor) {
             A->changeGradientSet(true);
         }
 
+        // synchronize before continuing with host code
+        CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
         // dB = A^T * gradOut_currTensor
         if (B->getTrackGradient()) {
             cublasSgemm_v2(
@@ -443,43 +476,70 @@ static void multiplicationGradient(Tensor* currentTensor) {
             );
             B->changeGradientSet(true);
         }
+        // synchronize before continuing with host code
+        CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     }
 }
 
 Tensor* Tensor::matmul(Tensor &other) {
-    if (matMulCompatible(other)) {
+    if (this->matMulCompatible(other)) {
+        // Allocate new memory for result
+        unsigned int resultSize = this->getShapeX() * other.getShapeY();
+        float* d_result = nullptr;
 
-        // allocate memory for result
-        float* d_result = reserveMemoryOnDevice(this->getShapeX() * other.getShapeY());
+        // reserve actual space in memory, add some padding for thread efficiency
+        cudaError_t allocStatus = cudaMalloc(&d_result, (resultSize + BLOCK_SIZE - (resultSize % BLOCK_SIZE)) * sizeof(float));
+    
+        if (allocStatus != cudaSuccess || d_result == nullptr) {
+            std::cout << "error while allocating memory";
+            std::cout << std::string(cudaGetErrorString(allocStatus));
+            throw std::runtime_error("CUDA memory allocation failed: " + std::string(cudaGetErrorString(allocStatus)));
+        }
 
-        // define some parameters
+        // synchronize before continuing with host code
+        CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
         float alpha = 1.0f;
         float beta = 0.0f;
         int tx = this->getShapeX();
 
-        // matmul
+        // Perform matrix multiplication into new memory location
         cublasStatus_t matmulStatus = cublasSgemm_v2(*handle,
-                                                    CUBLAS_OP_N,
-                                                    CUBLAS_OP_N,
-                                                    other.getShapeY(),
-                                                    this->getShapeX(),
-                                                    other.getShapeX(),
-                                                    &alpha,
-                                                    other.getValue(),
-                                                    other.getShapeY(),
-                                                    this->getValue(),
-                                                    this->getShapeY(),
-                                                    &beta,
-                                                    d_result,
-                                                    other.getShapeY()
+            CUBLAS_OP_T,
+            CUBLAS_OP_T, 
+            this->getShapeX(),
+            other.getShapeY(),
+            this->getShapeY(),
+            &alpha,
+            this->getValue(),
+            this->getShapeY(),
+            other.getValue(), 
+            other.getShapeY(),
+            &beta,
+            d_result,
+            other.getShapeY()
         );
-        
+
+        // synchronize before continuing with host code
+        CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
         if (matmulStatus != CUBLAS_STATUS_SUCCESS) {
-            throw std::runtime_error("matrix multiplication failed: " + std::string(cublasGetStatusString(matmulStatus)));
+            // Clean up allocated memory on error
+            cudaFree(d_result);
+
+            throw std::runtime_error("matrix multiplication failed: " + 
+                std::string(cublasGetStatusString(matmulStatus)));
         }
 
-        // return result as a new Tensor
-        return new Tensor(d_result, {this->getShapeX(), other.getShapeY()}, true, multiplicationGradient, this, this->getShape(), &other, other.getShape());
+        // Create new tensor with its own memory space
+        return new Tensor(d_result, 
+                         {this->getShapeX(), other.getShapeY()},
+                         true, 
+                         multiplicationGradient,
+                         this,
+                         this->getShape(),
+                         &other,
+                         other.getShape());
     }
     throw std::runtime_error("incompatible shapes for matrix multiplication");
 }
@@ -499,6 +559,9 @@ static void hadamardGradient(Tensor* currentTensor) {
     // cache args
     Tensor* arg1 = currentTensor->getArg1();
     Tensor* arg2 = currentTensor->getArg2();
+
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // if a gradient is set the gradient calculations needs to factor in the gradient wrt to this tensor (chain rule)
     if (currentTensor->isGradientSet()) {
@@ -530,6 +593,9 @@ static void hadamardGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::hadamardProduct(Tensor &other) {
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // error checking is done is hadamardAlloc
     float* d_result = hadamardAlloc(this->getValue(), this->getShape(), other.getValue(), other.getShape());
     
@@ -556,6 +622,9 @@ static void reluGradient(Tensor* currentTensor) {
     // cache arg1
     Tensor* tensorGrad = currentTensor->getArg1();
 
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // compute gradient store in tensor's gradient attribute
     reluGrad(tensorGrad->getGradient(), tensorGrad->getValue(), tensorGrad->getSize());
 
@@ -564,6 +633,9 @@ static void reluGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::relu() {
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     float* d_tensorValue = reluAlloc(this->getValue(), this->getSize());
     return new Tensor(d_tensorValue, this->getShape(), true, reluGradient, this, this->getShape());
 }
@@ -581,6 +653,9 @@ static void sigmoidGradient(Tensor* currentTensor) {
     // cache arg1
     Tensor* tensorGrad = currentTensor->getArg1();
 
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // compute gradient store in tensor's gradient attribute, pass currentTensor's value for simplifying computation
     sigmoidGrad(tensorGrad->getGradient(), currentTensor->getValue(), tensorGrad->getSize());
 
@@ -589,6 +664,9 @@ static void sigmoidGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::sigmoid() {
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // compute sigmoid func store result in newly allocated memory section and return pointer to it
     float* d_sigmoidValue = sigmoidAlloc(this->getValue(), this->getSize());
 
@@ -609,6 +687,9 @@ static void tanhGradient(Tensor* currentTensor) {
     // cache arg1
     Tensor* tensorGrad = currentTensor->getArg1();
 
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // compute gradient store in tensor's gradient attribute, pass currentTensor's value for simplifying computation
     tanhGrad(tensorGrad->getGradient(), currentTensor->getValue(), tensorGrad->getSize());
 
@@ -617,6 +698,9 @@ static void tanhGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::tanh() {
+    // make sure that concurrent operations finished before accessing value
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // compute tanh func store result in newly allocated memory section and return pointer to it
     float* d_tanhValue = tanhAlloc(this->getValue(), this->getSize());
 
@@ -704,16 +788,18 @@ void Tensor::printGradient() const {
 
 // frees memory associated with this tensor and manages the cuBlas handle, be aware that this impacts the gradient calculation of preceding operations
 Tensor::~Tensor() {
+    // make sure that concurrent operations finished before cleaning up
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // free occupied memory
     if (this->d_value != nullptr) {
-        CHECK_CUDA_ERROR(cudaFree(this->d_value));
-        d_value = nullptr;
+        CHECK_CUDA_ERROR(cudaFree(this->d_value));  // no error checking because when the shit already hit the fan this will already be freed
+        // this->d_value = nullptr;
     }
 
-    if (this->d_gradient != nullptr) {
+    if (this->getTrackGradient() && this->d_gradient != nullptr) {
         CHECK_CUDA_ERROR(cudaFree(this->d_gradient));
-        d_gradient = nullptr;
+        // this->d_gradient = nullptr;
     }
 
     // decrement activeTensors counter and manages cuBlas handle
@@ -722,110 +808,3 @@ Tensor::~Tensor() {
         destroy_cuBlas();
     } 
 }
-
-
-/*int main() {
-    float* mem = constants(4, 2);
-    Tensor* t1 = new Tensor(mem, {2, 2}, true);
-    float* mem2 = constants(4, -5);
-    Tensor* t2 = new Tensor(mem2, {2, 2}, true);
-    // float* mem3 = constants(4, -2);
-    // Tensor* t4 = new Tensor(mem3, {2, 2}, true);
-    // Tensor* t3 = *t1 - *t2;
-    // Tensor* t5 = *t3 % *t4;
-
-    Tensor* t4 = *t1 * *t2;
-
-    t4->backward();
-    t4->printValue();
-
-    t1->printGradient();
-    t2->printGradient();
-
-    delete t1;
-    delete t2;
-    delete t4;
-
-    /*t5->backward();
-
-    t5->printValue();
-    t3->printValue();
-
-    t1->printGradient();
-    t4->printGradient();
-
-    /*float h_bias[3] = {1.0f, -2.0f, 3.0f};
-    float *bias;
-    cudaMalloc(&bias, 3 * sizeof(float));
-    cudaMemcpy(bias, h_bias, 3 * sizeof(float), cudaMemcpyHostToDevice);
-
-    Tensor t1 = Tensor(bias, 3, 1, false, nullptr);
-    Tensor* t2 = t1.relu();
-
-    cudaMemcpy(h_bias, t2->getValue(), 3 * sizeof(float), cudaMemcpyDeviceToHost);
-
-    for (int i=0; i<3; i++) {
-        std::cout << h_bias[i];
-    }
-
-    /*float *bias, *inp;
-    cudaError_t err;
-    
-    err = cudaMalloc(&bias, 3 * sizeof(float));
-    if (err != cudaSuccess) {
-        printf("cudaMalloc failed: %s\n", cudaGetErrorString(err));
-        return 1;
-    }
-    
-    err = cudaMalloc(&inp, 3 * sizeof(float));
-    if (err != cudaSuccess) {
-        printf("cudaMalloc failed: %s\n", cudaGetErrorString(err));
-        cudaFree(bias);
-        return 1;
-    }
-
-    // Initialize with some values
-    float h_bias[3] = {1.0f, 2.0f, 3.0f};
-    float h_inp[3] = {4.0f, 5.0f, 6.0f};
-    
-    cudaMemcpy(bias, h_bias, 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(inp, h_inp, 3 * sizeof(float), cudaMemcpyHostToDevice);
-
-    printf("Memory allocated and initialized\n");
-    fflush(stdout);  // Force print
-
-    Tensor t1 = Tensor(bias, 3, 0, false);
-    Tensor t2 = Tensor(inp, 3, 0, false);
-    
-    printf("Tensors created\n");  // Debug print
-    
-    Tensor* t3 = t1 + t2;
-    if (t3 == nullptr) {
-        printf("Addition failed\n");
-        cudaFree(bias);
-        cudaFree(inp);
-        return 1;
-    }
-    
-    printf("Addition completed\n");  // Debug print
-    
-    float host_result[3];
-    err = cudaMemcpy(host_result, t3->getValue(), 3 * sizeof(float), cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-        printf("cudaMemcpy failed: %s\n", cudaGetErrorString(err));
-        cudaFree(bias);
-        cudaFree(inp);
-        return 1;
-    }
-    
-    printf("Results:\n");  // Debug print
-    for (int i = 0; i < 3; i++) {
-        printf("%f ", host_result[i]);
-    }
-    printf("\n");
-    
-    cudaFree(bias);
-    cudaFree(inp);
-    
-    return 0;*/
-//}

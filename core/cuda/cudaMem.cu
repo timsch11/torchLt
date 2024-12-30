@@ -2,14 +2,24 @@
 
 
 float* reserveMemoryOnDevice(unsigned int size) {
+
     // declare pointer
-    float* memoryAlloc;
+    float* memoryAlloc = nullptr;
 
     // reserve actual space in memory, add some padding for thread efficiency
-    CHECK_CUDA_ERROR(cudaMalloc(&memoryAlloc, (size + BLOCK_SIZE - (size % BLOCK_SIZE)) * sizeof(float)));
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    cudaError_t allocStatus = cudaMalloc(&memoryAlloc, 
+        (size + BLOCK_SIZE - (size % BLOCK_SIZE)) * sizeof(float));
+    
+    if (allocStatus != cudaSuccess || memoryAlloc == nullptr) {
+        std::cout << "error while allocating memory";
+        std::cout << std::string(cudaGetErrorString(allocStatus));
+        throw std::runtime_error("CUDA memory allocation failed: " + 
+            std::string(cudaGetErrorString(allocStatus)));
+    }
 
-    // return pointer 
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    
     return memoryAlloc;
 }
 
@@ -27,8 +37,11 @@ float* zeros(unsigned int size) {
     float* d_memoryAllocation = reserveMemoryOnDevice(blockThreadAllocation.first * blockThreadAllocation.second);
 
     // launch kernel
-    __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_memoryAllocation, 0.0f);
+    __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_memoryAllocation, 0.0f);
+
+    // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     CHECK_CUDA_ERROR(cudaGetLastError());
 
     return d_memoryAllocation;
@@ -43,8 +56,11 @@ float* constants(unsigned int size, float constant) {
     float* d_memoryAllocation = reserveMemoryOnDevice(size);
 
     // launch kernel
-    __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_memoryAllocation, constant);
+    __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_memoryAllocation, constant);
+
+    // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     CHECK_CUDA_ERROR(cudaGetLastError());
 
     return d_memoryAllocation;
@@ -57,7 +73,10 @@ void constants(float* d_value, unsigned int size, float constant) {
 
     // launch kernel
     __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_value, constant);
+
+    // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     CHECK_CUDA_ERROR(cudaGetLastError()); 
 }
 
@@ -80,10 +99,13 @@ void cudaMemDup(float* d_source, float* d_destination, unsigned int size, bool t
 
     // select which kernel to use for copying
     if (transpose) {
-        __transposeMemDup<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination, size);
+        __transposeMemDup<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_source, d_destination, size);
     } else {
-        __memDup<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination);
+        __memDup<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_source, d_destination);
     }
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // error checking 
     CHECK_CUDA_ERROR(cudaGetLastError());
@@ -111,9 +133,10 @@ void weight_init(float* d_targetMemorySpace, unsigned int size, float scaling_fa
     std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
     // run kernel
-    __cuda_weight_init<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_targetMemorySpace, size, scaling_factor, seed);
-    CHECK_CUDA_ERROR(cudaGetLastError());
-
-    // Wait for GPU to finish before accessing on host
+    __cuda_weight_init<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_targetMemorySpace, size, scaling_factor, seed);
+    
+    // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    
+    CHECK_CUDA_ERROR(cudaGetLastError());
 }
