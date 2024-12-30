@@ -39,10 +39,16 @@ This library provides a robust implementation of tensor operations with automati
 
 ## Building
 
-Use the provided PowerShell build script:
+Use this PowerShell build script for the python wrapper:
 
 ```powershell
-./built.ps1
+./pybuilt.ps1
+```
+
+Use this PowerShell build script for the cpp library:
+
+```powershell
+./cppbuilt.ps1
 ```
 
 This will:
