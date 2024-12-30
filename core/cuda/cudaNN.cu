@@ -16,13 +16,16 @@ __global__ void __relu(float* d_targetMemorySpace, float* vector) {
 cudaError_t relu(float* d_targetMemorySpace, float* d_vector, unsigned int size) {
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
     __relu<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector);
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     return cudaGetLastError();
 }
 
 float* reluAlloc(float* d_vector, unsigned int size) {
     float* result = reserveMemoryOnDevice(size);
     relu(result, d_vector, size);
-    CHECK_CUDA_ERROR(cudaGetLastError());
     return result;
 }
 
@@ -36,7 +39,10 @@ cudaError_t sigmoid(float* d_targetMemorySpace, float* d_tensor, unsigned int si
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
 
     // execute computation
-    __sigmoid<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor);
+    __sigmoid<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor);
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // return cudaSuccess_t or error
     return cudaGetLastError();
@@ -62,7 +68,10 @@ cudaError_t tanh(float* d_targetMemorySpace, float* d_tensor, unsigned int size)
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
 
     // execute computation
-    __tanh<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor);
+    __tanh<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor);
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // return cudaSuccess_t or error
     return cudaGetLastError();

@@ -17,6 +17,9 @@ cudaError_t reluGrad(float* d_targetMemorySpace, float* d_vector, unsigned int s
     // execute computation
     __reluGrad<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector);
 
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     return cudaGetLastError();
 }
 
@@ -33,6 +36,9 @@ cudaError_t sigmoidGrad(float* d_targetMemorySpace, float* d_tensor, unsigned in
     // execute computation
     __sigmoidGrad<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor);
 
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     return cudaGetLastError();
 }
 
@@ -48,6 +54,9 @@ cudaError_t tanhGrad(float* d_targetMemorySpace, float* d_tensor, unsigned int s
 
     // execute computation
     __tanhGrad<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor);
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return cudaGetLastError();
 }

@@ -9,6 +9,7 @@
 .vscode
 b.cu
 venv
+bin
 TODO
 
 wrapper.cpp

@@ -24,7 +24,6 @@ std::pair<unsigned int, unsigned int> computeBlockThreadAllocation(unsigned int 
 template <typename T>
 void check(T err, const char* const func, const char* const file, const int line) {
     if (err != cudaSuccess) {
-        std::cout << "CUDA error during execution of" << std::string(func) << ":\nline: " << std::string(line) << 
         fprintf(stderr, "CUDA error at %s:%d code=%d(%s) \"%s\" \n", file, line, static_cast<unsigned int>(err), cudaGetErrorString(err), func);
         throw std::runtime_error(std::string(cudaGetErrorString(err)));
     }
