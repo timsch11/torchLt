@@ -4,12 +4,9 @@ A high-performance tensor computation library implemented in CUDA C++ for GPU ac
 
 # Note:
 
-Even though the core library is largely done, there are still some topics to address:
-- optimize synchronization
-- some more testing
+Even though the core library is largely done, some operations (namely matmul) are still buggy which I will address in the future
 
 Further feature I want to add in the future:
-- cython wrapper
 - loss functions
 
 ## Overview
