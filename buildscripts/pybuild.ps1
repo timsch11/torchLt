@@ -29,10 +29,9 @@ nvcc -lib bin/pybuilt/util.obj bin/pybuilt/factory.obj bin/pybuilt/tensor.obj bi
 # Create dll
 nvcc -lib bin/pybuilt/util.obj bin/pybuilt/factory.obj bin/pybuilt/tensor.obj bin/pybuilt/cudadif.obj bin/pybuilt/cudamath.obj bin/pybuilt/cudamem.obj bin/pybuilt/cudann.obj -Xcompiler "/MD" -o bin/pylib/Tensor.dll
 
-
-# go back to inital dir
-Set-Location $INITIAL_LOCATION
-
 $pythonPath = & python -c "import sys; print(sys.executable)"
 
 & $pythonPath setup.py build_ext --inplace
+
+# go back to inital dir
+Set-Location $INITIAL_LOCATION
