@@ -62,6 +62,9 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
     // init cuBlas (if not done yet)
     init_cuBlas();
 
+    // initalize reference counter
+    refCount = new int(1);
+
     // keep track of active tensors
     activeTensors++;
 
@@ -234,6 +237,18 @@ void Tensor::changeGradientSet(bool _gradientSet) {
     this->gradientSet = _gradientSet;
 }
 
+void Tensor::addReference() {
+    (*refCount)++;
+}
+
+void Tensor::removeReference() {
+    (*refCount)--;
+    if (*refCount <= 0) {
+        delete this;
+    }
+}
+
+
 // updates graphStream for the subgraph and itself, requires initalized stream
 void Tensor::setGraphStreamForSubgraph(cudaStream_t* _graphStream) {
 
@@ -338,8 +353,9 @@ static void additionGradient(Tensor* currentTensor) {
 
 // adds tensor values up and stores result in new Tensor, returns pointer to Tensor that holds result of addition if shapes match, otherwise prints error message and returns nullpointer
 Tensor* Tensor::add(Tensor &other) {
-    // make sure that concurrent operations finished before accessing value
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    // increment reference count of results args (dependencies)
+    this->addReference();
+    other.addReference();
 
     float* d_result = tensoraddAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
     return new Tensor(d_result, this->getShape(), true, &additionGradient, this, this->getShape(), &other, other.getShape());
@@ -396,8 +412,9 @@ static void subtractionGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::sub(Tensor &other) {
-    // make sure that concurrent operations finished before accessing value
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    // increment reference count of results args (dependencies)
+    this->addReference();
+    other.addReference();
 
     float* d_result = tensorsubAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
     return new Tensor(d_result, this->getShape(), true, &subtractionGradient, this, this->getShape(), &other, other.getShape());
@@ -482,57 +499,18 @@ static void multiplicationGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::matmul(Tensor &other) {
+
+    // increment reference count of results args (dependencies)
+    this->addReference();
+    other.addReference();
+
     if (this->matMulCompatible(other)) {
-        // Allocate new memory for result
-        unsigned int resultSize = this->getShapeX() * other.getShapeY();
-        float* d_result = nullptr;
 
-        // reserve actual space in memory, add some padding for thread efficiency
-        cudaError_t allocStatus = cudaMalloc(&d_result, (resultSize + BLOCK_SIZE - (resultSize % BLOCK_SIZE)) * sizeof(float));
-    
-        if (allocStatus != cudaSuccess || d_result == nullptr) {
-            std::cout << "error while allocating memory";
-            std::cout << std::string(cudaGetErrorString(allocStatus));
-            throw std::runtime_error("CUDA memory allocation failed: " + std::string(cudaGetErrorString(allocStatus)));
-        }
-
-        // synchronize before continuing with host code
-        CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
-        float alpha = 1.0f;
-        float beta = 0.0f;
-        int tx = this->getShapeX();
-
-        // Perform matrix multiplication into new memory location
-        cublasStatus_t matmulStatus = cublasSgemm_v2(*handle,
-            CUBLAS_OP_T,
-            CUBLAS_OP_T, 
-            this->getShapeX(),
-            other.getShapeY(),
-            this->getShapeY(),
-            &alpha,
-            this->getValue(),
-            this->getShapeY(),
-            other.getValue(), 
-            other.getShapeY(),
-            &beta,
-            d_result,
-            other.getShapeY()
-        );
-
-        // synchronize before continuing with host code
-        CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
-        if (matmulStatus != CUBLAS_STATUS_SUCCESS) {
-            // Clean up allocated memory on error
-            cudaFree(d_result);
-
-            throw std::runtime_error("matrix multiplication failed: " + 
-                std::string(cublasGetStatusString(matmulStatus)));
-        }
-
-        // Create new tensor with its own memory space
-        return new Tensor(d_result, 
+        try {
+            float* d_resultMatrix = matmulAlloc(handle, this->getShapeX(), this->getShapeY(), other.getShapeX(), other.getShapeY(), this->getValue(), other.getValue());
+            
+            // Create new tensor with its own memory space
+            return new Tensor(d_resultMatrix, 
                          {this->getShapeX(), other.getShapeY()},
                          true, 
                          multiplicationGradient,
@@ -540,6 +518,10 @@ Tensor* Tensor::matmul(Tensor &other) {
                          this->getShape(),
                          &other,
                          other.getShape());
+        } catch (...) {
+            std::cout << "error in matmul";
+            throw;
+        }
     }
     throw std::runtime_error("incompatible shapes for matrix multiplication");
 }
@@ -593,8 +575,9 @@ static void hadamardGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::hadamardProduct(Tensor &other) {
-    // make sure that concurrent operations finished before accessing value
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    // increment reference count of results args (dependencies)
+    this->addReference();
+    other.addReference();
 
     // error checking is done is hadamardAlloc
     float* d_result = hadamardAlloc(this->getValue(), this->getShape(), other.getValue(), other.getShape());
@@ -633,8 +616,8 @@ static void reluGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::relu() {
-    // make sure that concurrent operations finished before accessing value
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    // increment reference count of results args (dependencies)
+    this->addReference();
 
     float* d_tensorValue = reluAlloc(this->getValue(), this->getSize());
     return new Tensor(d_tensorValue, this->getShape(), true, reluGradient, this, this->getShape());
@@ -664,8 +647,8 @@ static void sigmoidGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::sigmoid() {
-    // make sure that concurrent operations finished before accessing value
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    // increment reference count of results args (dependencies)
+    this->addReference();
 
     // compute sigmoid func store result in newly allocated memory section and return pointer to it
     float* d_sigmoidValue = sigmoidAlloc(this->getValue(), this->getSize());
@@ -687,9 +670,6 @@ static void tanhGradient(Tensor* currentTensor) {
     // cache arg1
     Tensor* tensorGrad = currentTensor->getArg1();
 
-    // make sure that concurrent operations finished before accessing value
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     // compute gradient store in tensor's gradient attribute, pass currentTensor's value for simplifying computation
     tanhGrad(tensorGrad->getGradient(), currentTensor->getValue(), tensorGrad->getSize());
 
@@ -698,8 +678,8 @@ static void tanhGradient(Tensor* currentTensor) {
 }
 
 Tensor* Tensor::tanh() {
-    // make sure that concurrent operations finished before accessing value
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    // increment reference count of results args (dependencies)
+    this->addReference();
 
     // compute tanh func store result in newly allocated memory section and return pointer to it
     float* d_tanhValue = tanhAlloc(this->getValue(), this->getSize());
@@ -788,18 +768,48 @@ void Tensor::printGradient() const {
 
 // frees memory associated with this tensor and manages the cuBlas handle, be aware that this impacts the gradient calculation of preceding operations
 Tensor::~Tensor() {
-    // make sure that concurrent operations finished before cleaning up
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    // free occupied memory
-    if (this->d_value != nullptr) {
-        CHECK_CUDA_ERROR(cudaFree(this->d_value));  // no error checking because when the shit already hit the fan this will already be freed
-        // this->d_value = nullptr;
+    std::cout << " \nGarbage collector\n";
+
+    // Safety check for null refCount
+    if (!refCount) {
+        return;
     }
 
-    if (this->getTrackGradient() && this->d_gradient != nullptr) {
+    std::cout << "garbage collector actually deletes";
+
+    // Decrement reference count
+    (*refCount)--;
+
+    // if other Tensors that reference this Tensor still exist: abort
+    if (*(this->refCount) > 0) {
+        return;
+    }
+
+    // clean up
+    if (this->refCount != nullptr) {
+        delete refCount;
+    }
+
+    // decrement (and delete if no other references) reference counter of args
+    if (this->getArg1() != nullptr) {
+        this->getArg1()->removeReference();
+        this->d_funcArg1 = nullptr;
+    }
+    if (this->getArg2() != nullptr) {
+        this->getArg2()->removeReference();
+        this->d_funcArg2 = nullptr;
+    }
+
+    // free occupied memory
+    if (this->d_value) {
+        CHECK_CUDA_ERROR(cudaFree(this->d_value));  // no error checking because when the shit already hit the fan this will already be freed
+        this->d_value = nullptr;
+    }
+
+    if (this->getTrackGradient() && this->d_gradient) {
         CHECK_CUDA_ERROR(cudaFree(this->d_gradient));
-        // this->d_gradient = nullptr;
+        this->d_gradient = nullptr;
     }
 
     // decrement activeTensors counter and manages cuBlas handle

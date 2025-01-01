@@ -2,6 +2,7 @@
 
 
 float* reserveMemoryOnDevice(unsigned int size) {
+    unsigned int allocationSize = size + BLOCK_SIZE - (size % BLOCK_SIZE);
 
     // declare pointer
     float* memoryAlloc = nullptr;
@@ -11,7 +12,6 @@ float* reserveMemoryOnDevice(unsigned int size) {
         (size + BLOCK_SIZE - (size % BLOCK_SIZE)) * sizeof(float));
     
     if (allocStatus != cudaSuccess || memoryAlloc == nullptr) {
-        std::cout << "error while allocating memory";
         std::cout << std::string(cudaGetErrorString(allocStatus));
         throw std::runtime_error("CUDA memory allocation failed: " + 
             std::string(cudaGetErrorString(allocStatus)));

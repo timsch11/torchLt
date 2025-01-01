@@ -3,6 +3,7 @@
 
 
 #include <cuda_runtime.h>
+
 #include "cublas_v2.h"
 
 #include <string>
@@ -69,6 +70,8 @@ class Tensor {
 
         unsigned int lowerGraphSize;
 
+        int* refCount;
+
         // shapes of function arguments
 
         std::pair<unsigned int, unsigned int> shapeFuncArg1;
@@ -120,6 +123,37 @@ class Tensor {
          * @brief Destructor that frees device memory and handles cuBLAS cleanup
          */
         ~Tensor();
+
+        // garbage collector utils
+
+        /**
+        * @brief Reference counting management for tensor objects
+        * 
+        * addReference(): Increments the reference counter for this tensor
+        * indicating another object is using this tensor.
+        * 
+        * removeReference(): Decrements the reference counter and deletes
+        * the tensor object if no more references exist (counter reaches 0).
+        * This implements automatic memory management through reference counting.
+        * 
+        * @warning Improper use of these methods may lead to memory leaks or
+        * premature object deletion. Always ensure references are properly
+        * tracked.
+        */
+        void addReference();
+
+        /**
+        * @brief Decrements the reference count and deletes the tensor if no references remain
+        * 
+        * This method is part of the reference counting mechanism for memory management.
+        * It decrements the reference counter and if it reaches zero or below,
+        * the tensor object is deleted from memory.
+        * 
+        * @warning This method may delete the current object, so no member access
+        *          should be performed after calling this method
+        */
+        void removeReference();
+
 
         // GETTER
 
@@ -264,7 +298,7 @@ class Tensor {
         * 
         * @see matMulCompatible()
         */
-        Tensor* matmul(Tensor & other);
+        Tensor* matmul(Tensor &other);
         /**
         * @brief Performs element-wise (Hadamard) multiplication of two tensors.
         * 

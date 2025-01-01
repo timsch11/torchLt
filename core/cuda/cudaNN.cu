@@ -168,3 +168,39 @@ float* tensorsubAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vecto
     // return pointer to result
     return d_result;
 }
+
+float* matmulAlloc(cublasHandle_t* handle, int ax, int ay, int bx, int by, const float *A, const float *B) {
+    if (ay != bx) {
+        throw std::runtime_error("invalid shapes for matrix multiplciation");
+    }
+
+    // allocate memory
+    float* C = reserveMemoryOnDevice(ax * by);
+    
+    float alpha = 1.0f;
+    float beta = 0.0f;
+
+    // call cuBLAS
+    // c++ uses row major format, cuBLAS uses column major format
+    // rowMajor(A) = columnMajor(A)T
+    // this function essentially computes C = (BT AT)T
+    cublasStatus_t matmulStatus = cublasSgemm_v2(*handle,
+                CUBLAS_OP_N, CUBLAS_OP_N, // No transpose for both A and B
+                by, ax, bx,
+                &alpha, B, by, // A is m x k
+                A, bx, // B is k x n
+                &beta, C, by); // C is m x n
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    if (matmulStatus != CUBLAS_STATUS_SUCCESS) {
+        cudaFree(C);
+        std::cout << std::string(cublasGetStatusString(matmulStatus));
+        throw std::runtime_error("matrix multiplication failed: " + 
+            std::string(cublasGetStatusString(matmulStatus)));
+    }
+
+    // return pointer to result
+    return C;
+}

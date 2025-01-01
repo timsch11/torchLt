@@ -4,6 +4,8 @@
 
 #include <cuda_runtime.h>
 
+#include "cublas_v2.h"
+
 #include <stdexcept>
 #include <string>
 
@@ -116,5 +118,6 @@ cudaError_t scaletensor(float* d_targetMemorySpace, float* d_tensor, unsigned in
  */
 cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2,
                      std::pair<unsigned int, unsigned int> shape);
+
 
 #endif

@@ -83,6 +83,7 @@ Tensor* createTensorFromHost(float* _h_value, std::pair<unsigned int, unsigned i
 
     if (copyError != cudaSuccess) {
         std::string errorString = "cudaMemCpy failed: " + std::string(cudaGetErrorString(copyError)) + "\n";
+        std::cout << "\n" << d_value << " freed\n";
         cudaFree(d_value);
         std::cout << errorString;
         throw std::runtime_error(errorString);
@@ -93,6 +94,7 @@ Tensor* createTensorFromHost(float* _h_value, std::pair<unsigned int, unsigned i
         obj = new Tensor(d_value, _shape, _track_gradient);
         return obj;
     } catch(std::runtime_error exc) {
+        std::cout << "\n" << d_value << " freed\n";
         cudaFree(d_value);
         std::cout << "Error when trying to create Tensor: " << std::string(exc.what()) << "\n";
         throw std::runtime_error("Error when trying to create Tensor: " + std::string(exc.what()) + "\n");
