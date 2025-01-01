@@ -769,14 +769,10 @@ void Tensor::printGradient() const {
 // frees memory associated with this tensor and manages the cuBlas handle, be aware that this impacts the gradient calculation of preceding operations
 Tensor::~Tensor() {
 
-    std::cout << " \nGarbage collector\n";
-
     // Safety check for null refCount
     if (!refCount) {
         return;
     }
-
-    std::cout << "garbage collector actually deletes";
 
     // Decrement reference count
     (*refCount)--;
