@@ -1,43 +1,32 @@
-# cuTensor Library
+# cuTensor
 
-A high-performance tensor computation library implemented in CUDA C++ for GPU acceleration.
+cuTensor is a CUDA-accelerated tensor library designed for high-performance numerical computations. It provides a Python interface for tensor operations, leveraging the power of NVIDIA GPUs to perform efficient mathematical operations and automatic differentiation.
 
 # Note:
 
 Even though the core library is largely done, some operations (namely matmul) are still buggy which I will address in the future
 
-Further feature I want to add in the future:
+Further features I want to add in the future:
 - loss functions
 
-## Overview
+## Features
 
-This library provides a robust implementation of tensor operations with automatic differentiation support, making it suitable for deep learning applications. The library is built with CUDA to leverage GPU acceleration for compute-intensive operations.
+- **High Performance**: Utilizes CUDA for GPU acceleration.
+- **Automatic Differentiation**: Supports backpropagation for gradient computation.
+- **Accessible from Python**: Cython bindings make Tensor accessible from python
+- **Flexible Initialization**: Supports Xavier and Kaiming He initialization.
+- **Comprehensive Tensor Operations**: Includes basic arithmetic, activation functions, and more.
 
-## Key Features
+## Installation
 
-- GPU-accelerated tensor operations
-- Automatic differentiation by computational graph tracking
-- Dynamic memory management
-- Tensor math operations
-- Common neural network operations:
-    - Activation functions (ReLU, Sigmoid, Tanh)
-    - Weight initialization (Kaiming He, Xavier)
- 
-## Tensor Operations:
+### Prerequisites
 
-- matrix multiplication (cuBLAS sgemm)
-- addition/subtraction (custom kernels)
-- hadamard product (custom kernel)
-- activation functions (custom kernels)
-- several memory operations like transpose copying (custom kernels)
+- NVIDIA CUDA Toolkit
+- Python 3.x
+- Cython
+- NumPy
 
-## Requirements
-
-- CUDA Toolkit
-- C++11 or higher
-- cuBLAS library
-
-## Building
+### Building
 
 Use this PowerShell build script for the python wrapper:
 
@@ -45,47 +34,41 @@ Use this PowerShell build script for the python wrapper:
 ./pybuilt.ps1
 ```
 
-Use this PowerShell build script for the cpp library:
+*Use this if you want to only use the python wrapper*
+
+This will:
+1. Create necessary directories
+2. Compile all CUDA source files
+3. Create static and dynamic libraries
+4. Setup python wrapper
+
+Use this PowerShell build script to build the c++ library:
 
 ```powershell
 ./cppbuilt.ps1
 ```
 
+*Use this if you want to only use the c++ library*
+
 This will:
 1. Create necessary directories
 2. Compile all CUDA source files
-3. Generate static library
+3. Create static library
 
 ## Usage Example
 
-```cpp
-// Initialize library
-init();
+*Take a look at example.cu or example.py*
 
-// Create tensors
-float data1[6] = {1.0f, 2.0f, 1.0f, 2.0f, 1.0f, 2.0f};
-float data2[6] = {-1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 2.0f};
-
-Tensor* t1 = createTensorFromHost(data1, {3, 2}, true);
-Tensor* t2 = createTensorFromHost(data2, {3, 2}, true);
-
-// Perform operations
-Tensor* t3 = *t1 - *t2;
-t3->backward();  // Compute gradients
-
-// Clean up
-delete t1;
-delete t2;
-delete t3;
-```
-
-## How to compile your files
+## How to compile your c++ files
 
 ```
 nvcc example.cu -o example.exe -lTensor -lcublas
 ```
+(Take care of you include path or store Tensor.lib in the same directory as your file)
 
 ## Project Structure
+
+**Cuda**
 
 - `core/`: Core implementation files
     - `Tensor.h/cu`: Main tensor class implementation
@@ -96,3 +79,6 @@ nvcc example.cu -o example.exe -lTensor -lcublas
         - `cudaDif.cuh/cu`: Gradient computation
         - `cudaNN.cuh/cu`: Neural network operations
         - `util.cuh/cu`: Utility functions
+
+**Python**
+- `Tensor`: Interface for using the Tensor API
