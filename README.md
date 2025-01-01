@@ -2,7 +2,7 @@
 
 cuTensor is a CUDA-accelerated tensor library designed for high-performance numerical computations. It provides a Python interface for tensor operations, leveraging the power of NVIDIA GPUs to perform efficient mathematical operations and automatic differentiation.
 
-# Note:
+# Note: still in development
 
 Even though the core library is largely done, some operations (namely matmul) are still buggy which I will address in the future
 
