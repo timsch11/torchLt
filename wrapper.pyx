@@ -255,7 +255,7 @@ cdef class PyTensor:
 
         return result
 
-    def matmul(self, PyTensor other):
+    #def matmul(self, PyTensor other):
         print("Warning: matmul not stable yet, have fun")
 
         # check for correct type
@@ -313,7 +313,7 @@ cdef class PyTensor:
     def __mul__(self, PyTensor other):
         return self.hadamard(other)
         
-    def __matmul__(self, PyTensor other):
+    #def __matmul__(self, PyTensor other):
         return self.matmul(other)
 
     """init cuda"""
