@@ -10,7 +10,7 @@ Tensor* createTensorFromInitFunction(std::pair<unsigned int, unsigned int> _shap
         delete obj;
         
         std::cout << "Error when trying to create Tensor: " << std::string(exc.what()) << "\n";
-        throw std::runtime_error("Error when trying to create Tensor: " + std::string(exc.what()) + "\n");
+        exit(EXIT_FAILURE);
     }
 
     return obj;
@@ -25,7 +25,7 @@ Tensor* createTensorFromDevice(float* _d_value, std::pair<unsigned int, unsigned
         delete obj;
         
         std::cout << "Error when trying to create Tensor: " << std::string(exc.what()) << "\n";
-        throw std::runtime_error("Error when trying to create Tensor: " + std::string(exc.what()) + "\n");
+        exit(EXIT_FAILURE);
     }
 
     return obj;
@@ -40,7 +40,7 @@ Tensor* createTensorFromDevice(float* _d_value, std::pair<unsigned int, unsigned
         delete obj;
 
         std::cout << "Error when trying to create Tensor: " << std::string(exc.what()) << "\n";
-        throw std::runtime_error("Error when trying to create Tensor: " + std::string(exc.what()) + "\n");
+        exit(EXIT_FAILURE);
     }
 
     return obj;
@@ -55,13 +55,14 @@ Tensor* createTensorFromDevice(float* _d_value, std::pair<unsigned int, unsigned
         delete obj;
 
         std::cout << "Error when trying to create Tensor: " << std::string(exc.what()) << "\n";
-        throw std::runtime_error("Error when trying to create Tensor: " + std::string(exc.what()) + "\n");
+        exit(EXIT_FAILURE);
     }
 
     return obj;
 }
 
 Tensor* createTensorFromHost(float* _h_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient) {
+    std::cout << "shape in Factory: " << _shape.first << "," << _shape.second;
     float* d_value;
     unsigned int size = _shape.first * _shape.second;
 
@@ -73,7 +74,7 @@ Tensor* createTensorFromHost(float* _h_value, std::pair<unsigned int, unsigned i
     if (allocationError != cudaSuccess) {
         std::string errorString = "cudaMalloc failed: " + std::string(cudaGetErrorString(allocationError)) + "\n";
         std::cout << errorString;
-        throw std::runtime_error(errorString);
+        exit(EXIT_FAILURE);
     }
 
     cudaError_t copyError = cudaMemcpy(d_value, _h_value, size * sizeof(float), cudaMemcpyHostToDevice);
@@ -83,33 +84,35 @@ Tensor* createTensorFromHost(float* _h_value, std::pair<unsigned int, unsigned i
 
     if (copyError != cudaSuccess) {
         std::string errorString = "cudaMemCpy failed: " + std::string(cudaGetErrorString(copyError)) + "\n";
-        std::cout << "\n" << d_value << " freed\n";
         cudaFree(d_value);
         std::cout << errorString;
-        throw std::runtime_error(errorString);
+        exit(EXIT_FAILURE);
     }
 
     Tensor* obj = nullptr;
     try {
         obj = new Tensor(d_value, _shape, _track_gradient);
+
         return obj;
     } catch(std::runtime_error exc) {
-        std::cout << "\n" << d_value << " freed\n";
         cudaFree(d_value);
         std::cout << "Error when trying to create Tensor: " << std::string(exc.what()) << "\n";
-        throw std::runtime_error("Error when trying to create Tensor: " + std::string(exc.what()) + "\n");
+        exit(EXIT_FAILURE);
     }
 }
+
 
 void init() {
     int deviceCount;
     cudaError_t err = cudaGetDeviceCount(&deviceCount);
     if (err != cudaSuccess || deviceCount == 0) {
-        throw std::runtime_error("No CUDA devices available");
+        printf("No CUDA devices available");
+        exit(EXIT_FAILURE);
     }
 
     err = cudaSetDevice(0);
     if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to initialize CUDA device");
+        printf("Failed to initialize CUDA device");
+        exit(EXIT_FAILURE);
     }
 }

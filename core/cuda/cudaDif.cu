@@ -15,12 +15,15 @@ cudaError_t reluGrad(float* d_targetMemorySpace, float* d_vector, unsigned int s
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
 
     // execute computation
-    __reluGrad<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector);
+    __reluGrad<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_vector);
+
+    // check for errors
+    cudaError_t err = cudaGetLastError();
 
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    return cudaGetLastError();
+    return err;
 }
 
 __global__ void __sigmoidGrad(float* d_targetMemorySpace, float* d_tensor) {
@@ -34,12 +37,15 @@ cudaError_t sigmoidGrad(float* d_targetMemorySpace, float* d_tensor, unsigned in
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
 
     // execute computation
-    __sigmoidGrad<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor);
+    __sigmoidGrad<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor);
+
+    // check for errors
+    cudaError_t err = cudaGetLastError();
 
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    return cudaGetLastError();
+    return err;
 }
 
 __global__ void __tanhGrad(float* d_targetMemorySpace, float* d_tensor) {
@@ -53,10 +59,13 @@ cudaError_t tanhGrad(float* d_targetMemorySpace, float* d_tensor, unsigned int s
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
 
     // execute computation
-    __tanhGrad<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor);
+    __tanhGrad<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor);
+
+    // check for errors
+    cudaError_t err = cudaGetLastError();
 
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    return cudaGetLastError();
+    return err;
 }

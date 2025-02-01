@@ -33,7 +33,7 @@ float* constants(unsigned int size, float constant);
  * @param d_value Pointer to array to be filled with constants
  * @param constant Value to fill in
  */
-void constants(float* d_value, unsigned int size, float constant);
+cudaError_t constants(float* d_value, unsigned int size, float constant);
 
 /**
  * @brief Duplicates an array on device memory
@@ -42,7 +42,7 @@ void constants(float* d_value, unsigned int size, float constant);
  * @param size Size of array to be duplicated
  * @param transpose Whether destination array should be the transposed version of source
  */
-void cudaMemDup(float* d_source, float* d_destination, unsigned int size, bool transpose = false);
+cudaError_t cudaMemDup(float* d_source, float* d_destination, unsigned int size, bool transpose = false);
 
 /**
  * @brief fills tensor of specified size with values sampled from a scaled random normal distribution: N~(0, sqrt(<scalingFactor>))
@@ -51,6 +51,6 @@ void cudaMemDup(float* d_source, float* d_destination, unsigned int size, bool t
  * @param scaling_factor variance of the normal distribution
  * @param seed determines the seed for the curand normal dist. function
  */
-void weight_init(float* d_targetMemorySpace, unsigned int size, float scaling_factor, int seed);
+cudaError_t weight_init(float* d_targetMemorySpace, unsigned int size, float scaling_factor, int seed);
 
 #endif

@@ -9,7 +9,7 @@ from setuptools.command.build_ext import build_ext
 
 
 CUDA_HOME = Path(os.environ.get('CUDA_PATH'))
-PROJECT_ROOT = Path(os.environ.get('PROJECT_ROOT', Path(__file__).parent))
+PROJECT_ROOT = Path(__file__).parent
 
 
 ext = Extension('cuTensorCpy',

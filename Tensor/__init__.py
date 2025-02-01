@@ -7,7 +7,7 @@ import numpy as np
 
 # Add DLL search paths
 cuda_path = Path(os.environ.get('CUDA_PATH'))
-project_root = Path(os.environ.get('PROJECT_ROOT', Path(__file__).parent))
+project_root = Path(__file__).parent
 
 if sys.platform == 'win32':
     os.add_dll_directory(str(cuda_path / 'bin'))

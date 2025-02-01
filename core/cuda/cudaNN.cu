@@ -15,17 +15,30 @@ __global__ void __relu(float* d_targetMemorySpace, float* vector) {
 
 cudaError_t relu(float* d_targetMemorySpace, float* d_vector, unsigned int size) {
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
-    __relu<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector);
+    __relu<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_vector);
 
+    cudaError_t err = cudaGetLastError();
+    
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    return cudaGetLastError();
+    return err;
 }
 
 float* reluAlloc(float* d_vector, unsigned int size) {
     float* result = reserveMemoryOnDevice(size);
-    relu(result, d_vector, size);
+
+    if (result == nullptr) {
+        return nullptr;
+    }
+
+    cudaError_t err = relu(result, d_vector, size);
+
+    if (err != cudaSuccess) {
+        std::cout << "Cuda error when performing relu: " << std::string(cudaGetErrorString(err));
+        return nullptr;
+    }
+
     return result;
 }
 
@@ -39,21 +52,32 @@ cudaError_t sigmoid(float* d_targetMemorySpace, float* d_tensor, unsigned int si
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
 
     // execute computation
-    __sigmoid<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor);
+    __sigmoid<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor);
 
+    cudaError_t err = cudaGetLastError();
+    
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    // return cudaSuccess_t or error
-    return cudaGetLastError();
+    return err;
 }
 
 float* sigmoidAlloc(float* d_tensor, unsigned int size) {
     // allocate required memory (+padding)
     float* d_result = reserveMemoryOnDevice(size);
 
+    if (d_result == nullptr) {
+        return nullptr;
+    }
+
     // check for errors
-    CHECK_CUDA_ERROR(sigmoid(d_result, d_tensor, size));
+    cudaError_t err = sigmoid(d_result, d_tensor, size);
+
+
+    if (err != cudaSuccess) {
+        std::cout << "Cuda error when performing sigmoid: " << std::string(cudaGetErrorString(err));
+        return nullptr;
+    }
 
     return d_result;
 }
@@ -68,21 +92,31 @@ cudaError_t tanh(float* d_targetMemorySpace, float* d_tensor, unsigned int size)
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
 
     // execute computation
-    __tanh<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor);
+    __tanh<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor);
 
+    cudaError_t err = cudaGetLastError();
+    
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    // return cudaSuccess_t or error
-    return cudaGetLastError();
+    return err;
 }
 
 float* tanhAlloc(float* d_tensor, unsigned int size) {
     // allocate required memory (+padding)
     float* d_result = reserveMemoryOnDevice(size);
 
+    if (d_result == nullptr) {
+        return nullptr;
+    }
+
     // check for errors
-    CHECK_CUDA_ERROR(tanh(d_result, d_tensor, size));
+    cudaError_t err = tanh(d_result, d_tensor, size);
+
+    if (err != cudaSuccess) {
+        std::cout << "Cuda error when performing tanh: " << std::string(cudaGetErrorString(err));
+        return nullptr;
+    }
 
     return d_result;
 }
@@ -90,18 +124,18 @@ float* tanhAlloc(float* d_tensor, unsigned int size) {
 // WEIGHT INITIALIZATION
 
 
-void kaiming_he(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed) {
+cudaError_t kaiming_he(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed) {
     // set scaling factor for kaiming he init
     float scaling_factor = 2.0 / out_features;
 
-    weight_init(d_targetMemorySpace, in_features * out_features, scaling_factor, seed);
+    return weight_init(d_targetMemorySpace, in_features * out_features, scaling_factor, seed);
 }
 
-void xavier(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed) {
+cudaError_t xavier(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed) {
     // set scaling factor for xavier init
     float scaling_factor = 1.0 / out_features;
 
-    weight_init(d_targetMemorySpace, in_features * out_features, scaling_factor, seed);
+    return weight_init(d_targetMemorySpace, in_features * out_features, scaling_factor, seed);
 }
 
 // WEIGHT UPDATE
@@ -123,14 +157,25 @@ float* hadamardAlloc(float* d_tensor1, std::pair<unsigned int, unsigned int> sha
 
     // check for compatibility
     if (shapeT1.first != shapeT2.first || shapeT1.second != shapeT2.second) {
-        throw std::runtime_error("incompatible shapes for hadamard product");
+        printf("incompatible shapes for hadamard product");
+        return nullptr;
     }
 
     // allocate memory
     float* d_result = reserveMemoryOnDevice(shapeT1.first * shapeT1.second);
 
+    if (d_result == nullptr) {
+        printf("Error when allocating memory in hadamardAlloc");
+        return nullptr;
+    }
+
     // perform computation
-    CHECK_CUDA_ERROR(hadamard(d_result, d_tensor1, d_tensor2, shapeT1));
+    cudaError_t err = hadamard(d_result, d_tensor1, d_tensor2, shapeT1);
+
+    if (err != cudaSuccess) {
+        printf("Error when performing hadamard");
+        return nullptr;
+    }
 
     // return pointer to result
     return d_result;
@@ -140,14 +185,25 @@ float* hadamardAlloc(float* d_tensor1, std::pair<unsigned int, unsigned int> sha
 float* tensoraddAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2) {
     // check for compatibility
     if (vectorSize1 != vectorSize2) {
-        throw std::runtime_error("incompatible shapes for vector addition");
+        printf("incompatible shapes for vector addition");
+        return nullptr;
     }
 
     // allocate memory
     float* d_result = reserveMemoryOnDevice(vectorSize1);
 
+    if (d_result == nullptr) {
+        printf("Error when allocating memory in hadamardAlloc");
+        return nullptr;
+    }
+
     // perform computation
-    CHECK_CUDA_ERROR(tensoradd(d_result, d_vector1, vectorSize1, d_vector2, vectorSize2));
+    cudaError_t err = tensoradd(d_result, d_vector1, vectorSize1, d_vector2, vectorSize2);
+
+    if (err != cudaSuccess) {
+        printf("Error when performing add");
+        return nullptr;
+    }
 
     // return pointer to result
     return d_result;
@@ -156,14 +212,25 @@ float* tensoraddAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vecto
 float* tensorsubAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2) {
     // check for compatibility
     if (vectorSize1 != vectorSize2) {
-        throw std::runtime_error("incompatible shapes for vector subtraction");
+        printf("incompatible shapes for vector subtraction");
+        return nullptr;
     }
 
     // allocate memory
     float* d_result = reserveMemoryOnDevice(vectorSize1);
 
+    if (d_result == nullptr) {
+        printf("Error when allocating memory in hadamardAlloc");
+        return nullptr;
+    }
+
     // perform computation
-    CHECK_CUDA_ERROR(vecsub(d_result, d_vector1, vectorSize1, d_vector2, vectorSize2));
+    cudaError_t err = vecsub(d_result, d_vector1, vectorSize1, d_vector2, vectorSize2);
+
+    if (err != cudaSuccess) {
+        printf("Error when performing sub");
+        return nullptr;
+    }
 
     // return pointer to result
     return d_result;
@@ -171,20 +238,28 @@ float* tensorsubAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vecto
 
 float* matmulAlloc(cublasHandle_t* handle, int ax, int ay, int bx, int by, const float *A, const float *B) {
     if (ay != bx) {
-        throw std::runtime_error("invalid shapes for matrix multiplciation");
+        printf("invalid shapes for matrix multiplciation");
+        return nullptr;
     }
 
     // allocate memory
     float* C = reserveMemoryOnDevice(ax * by);
+
+    if (C == nullptr) {
+        printf("Error when allocating memory for result of matmul");
+        return nullptr;
+    }
     
     float alpha = 1.0f;
     float beta = 0.0f;
+
+    cublasStatus_t matmulStatus;
 
     // call cuBLAS
     // c++ uses row major format, cuBLAS uses column major format
     // rowMajor(A) = columnMajor(A)T
     // this function essentially computes C = (BT AT)T
-    cublasStatus_t matmulStatus = cublasSgemm_v2(*handle,
+    matmulStatus = cublasSgemm_v2(*handle,
                 CUBLAS_OP_N, CUBLAS_OP_N, // No transpose for both A and B
                 by, ax, bx,
                 &alpha, B, by, // A is m x k
@@ -196,9 +271,8 @@ float* matmulAlloc(cublasHandle_t* handle, int ax, int ay, int bx, int by, const
 
     if (matmulStatus != CUBLAS_STATUS_SUCCESS) {
         cudaFree(C);
-        std::cout << std::string(cublasGetStatusString(matmulStatus));
-        throw std::runtime_error("matrix multiplication failed: " + 
-            std::string(cublasGetStatusString(matmulStatus)));
+        std::cout << "matrix multiplication failed: " << std::string(cublasGetStatusString(matmulStatus));
+        return nullptr;
     }
 
     // return pointer to result

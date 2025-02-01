@@ -21,10 +21,13 @@ cudaError_t tensoradd(float* d_targetMemorySpace, float* d_tensor1, unsigned int
     
     __addTensorEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor1, d_tensor2);
 
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    return cudaGetLastError();
+    return err;
 }
 
 __global__ void __subtractVecEntries(float* d_targetMemorySpace, float* d_vec1, float* d_vec2) {
@@ -44,10 +47,13 @@ cudaError_t vecsub(float* d_targetMemorySpace, float* d_vector1, unsigned int ve
     
     __subtractVecEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector1, d_vector2);
 
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    return cudaGetLastError();
+    return err;
 }
 
 __global__ void __scaleEntries(float* d_targetMemorySpace, float* d_tensor, float scalar) {
@@ -61,10 +67,13 @@ cudaError_t scaletensor(float* d_targetMemorySpace, float* d_tensor, unsigned in
     
     __scaleEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor, scalar);
 
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    return cudaGetLastError();
+    return err;
 }
 
 __global__ void __hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2) {
@@ -81,11 +90,14 @@ cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tens
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
     
     // let kernel do its work
-    __hadamard<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor1, d_tensor2);
+    __hadamard<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor1, d_tensor2);
+
+    // check for errors
+    cudaError_t err = cudaGetLastError();
 
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // return error
-    return cudaGetLastError();
+    return err;
 }

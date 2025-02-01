@@ -116,7 +116,7 @@ float* tanhAlloc(float* d_tensor, unsigned int size);
  * 
  * @note The scaling factor is calculated as 2.0 / out_features according to He initialization
  */
-void kaiming_he(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed);
+cudaError_t kaiming_he(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed);
 
 /**
  * @brief Initializes weights using Xavier initialization method
@@ -131,7 +131,7 @@ void kaiming_he(float* d_targetMemorySpace, unsigned int in_features, unsigned i
  * 
  * @note The scaling factor is set to 1/out_features for this implementation
  */
-void xavier(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed);
+cudaError_t xavier(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed);
 
 
 // updates the given weight matrix (passed as pointer to float array), performs error checking 

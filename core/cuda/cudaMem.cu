@@ -1,10 +1,7 @@
 #include "cudaMem.cuh"
 
 
-float* reserveMemoryOnDevice(unsigned int size) {
-    unsigned int allocationSize = size + BLOCK_SIZE - (size % BLOCK_SIZE);
-
-    // declare pointer
+float* reserveMemoryOnDevice(unsigned int size) {// declare pointer
     float* memoryAlloc = nullptr;
 
     // reserve actual space in memory, add some padding for thread efficiency
@@ -13,8 +10,7 @@ float* reserveMemoryOnDevice(unsigned int size) {
     
     if (allocStatus != cudaSuccess || memoryAlloc == nullptr) {
         std::cout << std::string(cudaGetErrorString(allocStatus));
-        throw std::runtime_error("CUDA memory allocation failed: " + 
-            std::string(cudaGetErrorString(allocStatus)));
+        return nullptr;
     }
 
     // synchronize before continuing with host code
@@ -36,48 +32,71 @@ float* zeros(unsigned int size) {
     // reserve memory
     float* d_memoryAllocation = reserveMemoryOnDevice(blockThreadAllocation.first * blockThreadAllocation.second);
 
+    if (d_memoryAllocation == nullptr) {
+        printf("error when allocating memory");
+        return nullptr;
+    }
+
     // launch kernel
-    __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_memoryAllocation, 0.0f);
+    __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_memoryAllocation, 0.0f);
+
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
+    if (err != cudaSuccess) {
+        std::cout << std::string(cudaGetErrorString(err));
+        return nullptr;
+    }
 
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
-    CHECK_CUDA_ERROR(cudaGetLastError());
 
     return d_memoryAllocation;
 }
 
 float* constants(unsigned int size, float constant) {
-
     // calc block/thread allocation scheme
     std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
     // reserve memory
     float* d_memoryAllocation = reserveMemoryOnDevice(size);
 
+    if (d_memoryAllocation == nullptr) {
+        printf("error when allocating memory");
+        return nullptr;
+    }
+
     // launch kernel
     __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_memoryAllocation, constant);
+
+     // check for errors
+    cudaError_t err = cudaGetLastError();
+
+    if (err != cudaSuccess) {
+        std::cout << std::string(cudaGetErrorString(err));
+        return nullptr;
+    }
 
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    CHECK_CUDA_ERROR(cudaGetLastError());
-
     return d_memoryAllocation;
 }
 
-void constants(float* d_value, unsigned int size, float constant) {
-
+cudaError_t constants(float* d_value, unsigned int size, float constant) {
     // calc block/thread allocation scheme
     std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
     // launch kernel
     __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_value, constant);
 
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    CHECK_CUDA_ERROR(cudaGetLastError()); 
+    return err;
 }
 
 __global__ void __transposeMemDup(float* d_source, float* d_destination, int size) {
@@ -93,7 +112,7 @@ __global__ void __memDup(float* d_source, float* d_destination) {
     d_destination[ind] = d_source[ind];
 }
 
-void cudaMemDup(float* d_source, float* d_destination, unsigned int size, bool transpose) {
+cudaError_t cudaMemDup(float* d_source, float* d_destination, unsigned int size, bool transpose) {
     // calc block/thread allocation scheme
     std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
@@ -104,11 +123,13 @@ void cudaMemDup(float* d_source, float* d_destination, unsigned int size, bool t
         __memDup<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_source, d_destination);
     }
 
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    // error checking 
-    CHECK_CUDA_ERROR(cudaGetLastError());
+    return err;
 }
 
 // WEIGHT INITIALIZATION FUNCTIONS
@@ -127,16 +148,19 @@ __global__ void __cuda_weight_init(float* weights, unsigned int size, float scal
     weights[ind] = curand_normal(&state) * sqrtf(scalingFactor);
 }
 
-void weight_init(float* d_targetMemorySpace, unsigned int size, float scaling_factor, int seed) {
+cudaError_t weight_init(float* d_targetMemorySpace, unsigned int size, float scaling_factor, int seed) {
 
     // add some padding to ensure that kernel runs efficiently but also does not override other memory cells
     std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
     // run kernel
     __cuda_weight_init<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_targetMemorySpace, size, scaling_factor, seed);
-    
+
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
     // synchronize before continuing with host code
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     
-    CHECK_CUDA_ERROR(cudaGetLastError());
+    return err;
 }
