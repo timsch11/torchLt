@@ -56,7 +56,7 @@ Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradien
     this->d_value = reserveMemoryOnDevice( _shape.first * _shape.second);
 
     // error check
-    this->handleError(this->d_value);
+    this->handleError(this->d_value, "Error: Memory allocation failed");
 
     // FUTURE #TODO
     initalization_function(this->getValue(), _shape.first, _shape.second, seed);
@@ -67,7 +67,7 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
     // shape_x is #rows and shape_y is #columns, 0 = no actual row/column, vector has ONE column!!!
 
     // init cuBlas (if not done yet)
-    this->handleError(init_cuBlas());
+    this->handleError(init_cuBlas(), "Error: cuBlas initalization failed");
 
     // initalize reference counter
     refCount = new int(1);
@@ -77,7 +77,8 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
 
     // check for zero configuration
     if (_shape.first == 0 || _shape.second == 0) {
-        printf("Cannot initialize zero tensor: exit");
+        printf("Error: Cannot initialize zero tensor: exit\n");
+        delete this;
         exit(EXIT_FAILURE);
     }
             
@@ -101,7 +102,7 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
         this->d_gradient = reserveMemoryOnDevice(_shape.first * _shape.second);
 
         // check error
-        this->handleError(this->d_gradient);
+        this->handleError(this->d_gradient, "Error: Memory allocation for gradient failed");
     }
 }
 
@@ -159,10 +160,10 @@ float* Tensor::getValueCPU() const {
     // initalize float array on host 
     float* host_value = (float*) malloc(this->getSize() * sizeof(float));
 
-    this->handleError(host_value);
+    this->handleError(host_value, "Error: Memory allocation on host failed");
 
     // copy data, check for errors
-    this->handleError(cudaMemcpy(host_value, this->getValue(), this->getSize() * sizeof(float), cudaMemcpyDeviceToHost));
+    this->handleError(cudaMemcpy(host_value, this->getValue(), this->getSize() * sizeof(float), cudaMemcpyDeviceToHost), "Error: Memcpy from device to host failed");
     
     return host_value;
 }
@@ -175,10 +176,10 @@ float* Tensor::getGradientCPU() const {
     // initalize float array on host 
     float* host_gradient = (float*) malloc(this->getSize() * sizeof(float));
 
-    this->handleError(host_gradient);
+    this->handleError(host_gradient, "Error: Memory allocation on host failed");
 
     // copy data, check for errors
-    this->handleError(cudaMemcpy(host_gradient, this->getGradient(), this->getSize() * sizeof(float), cudaMemcpyDeviceToHost));
+    this->handleError(cudaMemcpy(host_gradient, this->getGradient(), this->getSize() * sizeof(float), cudaMemcpyDeviceToHost), "Error: Memcpy from device to host failed");
     
     return host_gradient;
 }
@@ -353,7 +354,7 @@ static void additionGradient(Tensor* currentTensor) {
 
             if (err != cudaSuccess) {
                 // FUTURE #TODO
-                printf("Error in addition gradient, when initalizing constant memory cells: exit");
+                printf("Error in addition gradient, when initalizing constant memory cells: exit\n");
                 exit(EXIT_FAILURE);
             }
 
@@ -365,7 +366,7 @@ static void additionGradient(Tensor* currentTensor) {
 
             if (err != cudaSuccess) {
                 // FUTURE #TODO
-                printf("Error in addition gradient, when initalizing constant memory cells: exit");
+                printf("Error in addition gradient, when initalizing constant memory cells: exit\n");
                 exit(EXIT_FAILURE);
             }
 
@@ -383,7 +384,7 @@ Tensor* Tensor::add(Tensor &other) {
     float* d_result = tensoraddAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
 
     // check error
-    this->handleError(d_result);
+    this->handleError(d_result, "Error: Addition failed");
 
     return new Tensor(d_result, this->getShape(), true, &additionGradient, this, this->getShape(), &other, other.getShape());
 }
@@ -403,13 +404,9 @@ Tensor* Tensor::operator+(Tensor &other) {
  * @param currentTensor Pointer to the current tensor whose gradient is being computed.
  */
 static void subtractionGradient(Tensor* currentTensor) {
-    // error handling #TODO
     // cache args
     Tensor* arg1 = currentTensor->getArg1();
     Tensor* arg2 = currentTensor->getArg2();
-
-    // make sure that concurrent operations finished before accessing value
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // copy gradient of this Tensor (and multply by I, neglected)
     if (currentTensor->isGradientSet()) {
@@ -418,22 +415,22 @@ static void subtractionGradient(Tensor* currentTensor) {
         float* partialGradient = currentTensor->getGradient();
 
         if (arg1->getTrackGradient()) {
-            cudaMemDup(partialGradient, arg1->getGradient(), arg1->getSize(), false);
+            currentTensor->handleError(cudaMemDup(partialGradient, arg1->getGradient(), arg1->getSize(), false), "Error: Gradient calculation (operation: subtraction) failed");
             arg1->changeGradientSet(true);
         }
 
         if (arg2->getTrackGradient()) {
-            cudaMemDup(partialGradient, arg2->getGradient(), arg1->getSize(), false);
+            currentTensor->handleError(cudaMemDup(partialGradient, arg2->getGradient(), arg1->getSize(), false), "Error: Gradient calculation (operation: subtraction) failed");
             arg2->changeGradientSet(true);
         }
     } else {
         if (arg1->getTrackGradient()) {
-            constants(arg1->getGradient(), arg1->getSize(), 1.0f);
+            currentTensor->handleError(constants(arg1->getGradient(), arg1->getSize(), 1.0f), "Error: Gradient calculation (operation: subtraction) failed");
             arg1->changeGradientSet(true);
         }
 
         if (arg2->getTrackGradient()) {
-            constants(arg2->getGradient(), arg1->getSize(), 1.0f);
+            currentTensor->handleError(constants(arg2->getGradient(), arg1->getSize(), 1.0f), "Error: Gradient calculation (operation: subtraction) failed");
             arg2->changeGradientSet(true);
         }
     }
@@ -447,7 +444,7 @@ Tensor* Tensor::sub(Tensor &other) {
     float* d_result = tensorsubAlloc(this->getValue(), this->getSize(), other.getValue(), other.getSize());
     
     // check error
-    this->handleError(d_result);
+    this->handleError(d_result, "Error: Subtraction failed");
 
     return new Tensor(d_result, this->getShape(), true, &subtractionGradient, this, this->getShape(), &other, other.getShape());
 }
@@ -540,27 +537,23 @@ Tensor* Tensor::matmul(Tensor &other) {
 
     if (this->matMulCompatible(other)) {
 
-        try {
-            float* d_resultMatrix = matmulAlloc(handle, this->getShapeX(), this->getShapeY(), other.getShapeX(), other.getShapeY(), this->getValue(), other.getValue());
+        float* d_resultMatrix = matmulAlloc(handle, this->getShapeX(), this->getShapeY(), other.getShapeX(), other.getShapeY(), this->getValue(), other.getValue());
             
-            // check error
-            this->handleError(d_resultMatrix);
+        // check error
+        this->handleError(d_resultMatrix, "Error: Matrix multiplication failed");
 
-            // Create new tensor with its own memory space
-            return new Tensor(d_resultMatrix, 
-                        {this->getShapeX(), other.getShapeY()},
-                        true, 
-                        multiplicationGradient,
-                        this,
-                        this->getShape(),
-                        &other,
-                        other.getShape());
-        } catch (...) {
-            std::cout << "error in matmul";
-            throw;
-        }
+        // Create new tensor with its own memory space
+        return new Tensor(d_resultMatrix, 
+                    {this->getShapeX(), other.getShapeY()},
+                    true, 
+                    multiplicationGradient,
+                    this,
+                    this->getShape(),
+                    &other,
+                    other.getShape());
     }
-    printf("incompatible shapes for matrix multiplication");
+    printf("Error: Incompatible shapes for matrix multiplication\n");
+    delete this;
     exit(EXIT_FAILURE);
 }
 
@@ -576,13 +569,9 @@ Tensor* Tensor::operator*(Tensor &other) {
  * @param currentTensor The Tensor this function is called for
  */
 static void hadamardGradient(Tensor* currentTensor) {
-    // FUTURE #TODO
     // cache args
     Tensor* arg1 = currentTensor->getArg1();
     Tensor* arg2 = currentTensor->getArg2();
-
-    // make sure that concurrent operations finished before accessing value
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // if a gradient is set the gradient calculations needs to factor in the gradient wrt to this tensor (chain rule)
     if (currentTensor->isGradientSet()) {
@@ -591,23 +580,24 @@ static void hadamardGradient(Tensor* currentTensor) {
 
         // calculate gradient, multiply with partialGradient, if gradient is tracked at all
         if (arg1->getTrackGradient()) {
-            hadamard(arg1->getGradient(), arg2->getValue(), partialGradient, arg1->getShape());
+            currentTensor->handleError(hadamard(arg1->getGradient(), arg2->getValue(), partialGradient, arg1->getShape()), "Error: Gradient calculation (operation: hadamard product) failed");
             arg1->changeGradientSet(true);
         }
 
         if (arg2->getTrackGradient()) {
-            hadamard(arg2->getGradient(), arg1->getValue(), partialGradient, arg1->getShape());
+            currentTensor->handleError(hadamard(arg2->getGradient(), arg1->getValue(), partialGradient, arg1->getShape()), "Error: Gradient calculation (operation: hadamard product) failed");
             arg2->changeGradientSet(true);
         }
 
     } else {
+        // no need to apply chain rule since this is the root of the computational graph
         if (arg1->getTrackGradient()) {
-            cudaMemDup(arg2->getValue(), arg1->getGradient(), arg1->getSize(), false);
+            currentTensor->handleError(cudaMemDup(arg2->getValue(), arg1->getGradient(), arg1->getSize(), false), "Error: Gradient calculation (operation: hadamard product) failed");
             arg1->changeGradientSet(true);
         }
 
         if (arg2->getTrackGradient()) {
-            cudaMemDup(arg1->getValue(), arg2->getGradient(), arg1->getSize(), false);
+            currentTensor->handleError(cudaMemDup(arg1->getValue(), arg2->getGradient(), arg1->getSize(), false), "Error: Gradient calculation (operation: hadamard product) failed");
             arg2->changeGradientSet(true);
         }
     }
@@ -622,7 +612,7 @@ Tensor* Tensor::hadamardProduct(Tensor &other) {
     float* d_result = hadamardAlloc(this->getValue(), this->getShape(), other.getValue(), other.getShape());
 
     // check error
-    this->handleError(d_result);
+    this->handleError(d_result, "Error: Hadamard product failed");
     
     // return new Tensor
     return new Tensor(d_result, this->getShape(), true, hadamardGradient, this, this->getShape(), &other, other.getShape());
@@ -644,15 +634,11 @@ Tensor* Tensor::operator%(Tensor &other) {
  * @param currentTensor Pointer to the tensor for which the ReLU gradient is to be computed.
  */
 static void reluGradient(Tensor* currentTensor) {
-    // FUTURE #TODO
     // cache arg1
     Tensor* tensorGrad = currentTensor->getArg1();
 
-    // make sure that concurrent operations finished before accessing value
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     // compute gradient store in tensor's gradient attribute
-    reluGrad(tensorGrad->getGradient(), tensorGrad->getValue(), tensorGrad->getSize());
+    currentTensor->handleError(reluGrad(tensorGrad->getGradient(), tensorGrad->getValue(), tensorGrad->getSize()), "Error: gradient calculation (operation: ReLU) failed");
 
     // set gradientSet flag
     tensorGrad->changeGradientSet(true);
@@ -665,7 +651,7 @@ Tensor* Tensor::relu() {
     float* d_tensorValue = reluAlloc(this->getValue(), this->getSize());
 
     // check error
-    this->handleError(d_tensorValue);
+    this->handleError(d_tensorValue, "Error: ReLU failed");
 
     return new Tensor(d_tensorValue, this->getShape(), true, reluGradient, this, this->getShape());
 }
@@ -680,12 +666,11 @@ Tensor* Tensor::relu() {
  * @param currentTensor Pointer to the tensor for which the sigmoid gradient is to be computed.
  */
 static void sigmoidGradient(Tensor* currentTensor) {
-    // FUTURE #TODO
     // cache arg1
     Tensor* tensorGrad = currentTensor->getArg1();
 
     // compute gradient store in tensor's gradient attribute, pass currentTensor's value for simplifying computation
-    sigmoidGrad(tensorGrad->getGradient(), currentTensor->getValue(), tensorGrad->getSize());
+    currentTensor->handleError(sigmoidGrad(tensorGrad->getGradient(), currentTensor->getValue(), tensorGrad->getSize()), "Error: gradient calculation (operation: sigmoid) failed");
 
     // set gradientSet flag
     tensorGrad->changeGradientSet(true);
@@ -699,7 +684,7 @@ Tensor* Tensor::sigmoid() {
     float* d_sigmoidValue = sigmoidAlloc(this->getValue(), this->getSize());
 
     // check error
-    this->handleError(d_sigmoidValue);
+    this->handleError(d_sigmoidValue, "Error: Sigmoid failed");
 
     // return new tensor that has holds result of the sigmoid function as a value and corresponding shape and gradient function
     return new Tensor(d_sigmoidValue, this->getShape(), true, sigmoidGradient, this, this->getShape());
@@ -719,7 +704,7 @@ static void tanhGradient(Tensor* currentTensor) {
     Tensor* tensorGrad = currentTensor->getArg1();
 
     // compute gradient store in tensor's gradient attribute, pass currentTensor's value for simplifying computation
-    tanhGrad(tensorGrad->getGradient(), currentTensor->getValue(), tensorGrad->getSize());
+    currentTensor->handleError(tanhGrad(tensorGrad->getGradient(), currentTensor->getValue(), tensorGrad->getSize()), "Error: gradient calculation (operation: tanh) failed");
 
     // set gradientSet flag
     tensorGrad->changeGradientSet(true);
@@ -733,7 +718,7 @@ Tensor* Tensor::tanh() {
     float* d_tanhValue = tanhAlloc(this->getValue(), this->getSize());
 
     // check error
-    this->handleError(d_tanhValue);
+    this->handleError(d_tanhValue, "Error: tanh failed");
 
     // return new tensor that holds the result of the tanh function as a value and corresponding shape and gradient function
     return new Tensor(d_tanhValue, this->getShape(), true, tanhGradient, this, this->getShape());
@@ -741,25 +726,29 @@ Tensor* Tensor::tanh() {
 
 // LOSS FUNCTIONS
 
-static void l2Gradient() {
-
+static void l2Gradient(Tensor* currentTensor) {
+    
 }
 
 Tensor* Tensor::l2(Tensor &other) {
-    //TODO
-    return nullptr;
     // increment reference count of results args (dependencies)
-    //this->addReference();
-    //other.addReference();
+    this->addReference();
+    other.addReference();
 
-    // error checking is done is hadamardAlloc
-    //float* d_result; 
+    float* d_result = l2LossAlloc(this->getValue(), other.getValue(), this->getShape(), other.getShape());
 
     // check error
-    //this->handleError(d_result);
+    this->handleError(d_result, "Error: An error occured during the computation of the L2 Loss");
     
     // return new Tensor
-    //return new Tensor(d_result, this->getShape(), true, hadamardGradient, this, this->getShape(), &other, other.getShape());
+    return new Tensor(d_result, {1, 1}, true, l2Gradient, this, this->getShape(), &other, other.getShape());
+}
+
+// Matrix operations
+
+void Tensor::transpose() {
+    // Swap shape dimensions
+    std::swap(this->shape.first, this->shape.second);
 }
 
 // PRINTING
@@ -784,7 +773,7 @@ std::ostream& operator<<(std::ostream &s, const Tensor &tensor) {
     float* val = tensor.getValueCPU();
 
     // check error
-    tensor.handleError(val);
+    tensor.handleError(val, "Error: Operation to get host copy of values failed");
 
     // print matrix in row major format
     for (unsigned int ind=0; ind<size; ind++) {
@@ -828,7 +817,7 @@ void Tensor::printGradient() const {
     float* grad = this->getGradientCPU();
 
     // check error
-    this->handleError(grad);
+    this->handleError(grad, "Error: Operation to get host copy of gradient failed");
 
     // print matrix in row major format
     for (unsigned int ind=0; ind<size; ind++) {
@@ -846,11 +835,11 @@ void Tensor::printGradient() const {
     free(grad);
 }
 
-void Tensor::handleError(cudaError_t err) const {
+void Tensor::handleError(cudaError_t err, std::string errorText) const {
     // only handle if error occured, otherwise do nothing
     if (err != cudaSuccess) {
         // error message was already printed in the error function
-        printf("CUDA error handled in <Tensor>, all ressources are freed");
+        std::cout << "\nCUDA error handled in <Tensor>: " << errorText << "\nressources are freed" << std::endl;
 
         // free ressources 
         delete this; 
@@ -858,10 +847,10 @@ void Tensor::handleError(cudaError_t err) const {
     }
 }
 
-void Tensor::handleError(cublasStatus_t err) const {
+void Tensor::handleError(cublasStatus_t err, std::string errorText) const {
     if (err != CUBLAS_STATUS_SUCCESS) {
         // error message was already printed in the error function
-        printf("CUDA error handled in <Tensor>, all ressources are freed");
+        std::cout << "\nCUDA error handled in <Tensor>: " << errorText << "\nressources are freed" << std::endl;
 
         // free ressources 
         delete this; 
@@ -869,19 +858,18 @@ void Tensor::handleError(cublasStatus_t err) const {
     }
 }
 
-void Tensor::handleError(float* err) const {
+void Tensor::handleError(float* err, std::string errorText) const {
     // only handle if error occured, otherwise do nothing
     if (err == nullptr) {
-        // error message was already printed in the error function
-        printf("CUDA error handled in <Tensor>, all ressources are freed");
+        std::cout << "\nCUDA error handled in <Tensor>: " << errorText << "\nressources are freed" << std::endl;
 
-        // free ressources 
+        // free ressources
         delete this; 
         exit(EXIT_FAILURE);
     }
 }
 
-void Tensor::handleError() const {
+void Tensor::handleError(std::string errorText) const {
 
 }
 
@@ -918,7 +906,7 @@ Tensor::~Tensor() {
 
     // free occupied memory
     if (this->d_value) {
-        CHECK_CUDA_ERROR(cudaFree(this->d_value));  // no error checking because when the shit already hit the fan this will already be freed
+        CHECK_CUDA_ERROR(cudaFree(this->d_value));
         this->d_value = nullptr;
     }
 

@@ -62,7 +62,6 @@ Tensor* createTensorFromDevice(float* _d_value, std::pair<unsigned int, unsigned
 }
 
 Tensor* createTensorFromHost(float* _h_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient) {
-    std::cout << "shape in Factory: " << _shape.first << "," << _shape.second;
     float* d_value;
     unsigned int size = _shape.first * _shape.second;
 

@@ -44,6 +44,12 @@ cdef extern from "Tensor.h":
         Tensor* relu()
         Tensor* sigmoid()
         Tensor* tanh()
+
+        # Loss Functions
+        Tensor* l2(Tensor &other)
+
+        # Matrix operations
+        void transpose()
         
         # Printing
         void printValue() const
@@ -96,9 +102,6 @@ cdef class PyTensor:
             np_array = np.ascontiguousarray(np.array(values, dtype=np.float32).flatten())
         else:
             raise ValueError("invalid type for value: must be either np.ndarray or python list or tuple")
-
-        # Debug print to verify the ordering if needed
-        print(np_array)
         
         # Get pointer to data
         cdef float* c_array = <float*>np_array.data
@@ -142,9 +145,6 @@ cdef class PyTensor:
             np_array = np.ascontiguousarray(np.array(values, dtype=np.float32))
         else:
             raise ValueError("invalid type for value: must be either np.ndarray, list, or tuple")
-
-        # Debug print to verify the ordering if needed
-        print(np_array)
 
         # Get pointer to data (data is now in row-major order)
         cdef float* c_array = <float*>np_array.data
@@ -338,6 +338,26 @@ cdef class PyTensor:
         result._tensor = self._tensor.tanh()
 
         return result
+
+    """loss functions"""
+
+    def l2(self, PyTensor other):
+        # check for correct type
+        if not isinstance(other, PyTensor):
+            raise TypeError("operation is only defined for other Tensors")
+
+        # create empty Tensor wrapper
+        result = PyTensor()
+
+        # carry out calculation with actual tensor and wrap result with our empty Tensor wrapper
+        result._tensor = self._tensor.l2(other._tensor[0])
+
+        return result
+
+    """matrix operations"""
+
+    def transpose(self):
+        self._tensor.transpose()
 
     """operator overloading"""
     

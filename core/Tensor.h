@@ -281,13 +281,85 @@ class Tensor {
          */
         bool matMulCompatible(Tensor other) const;
 
-        void handleError(cudaError_t err) const;
-
-        void handleError(cublasStatus_t err) const;
-
-        void handleError(float* err) const;
-
-        void handleError() const;
+        /**
+         * @brief Error handling functions for various error types in Tensor operations
+         * 
+         * @param err Error object to check (float* pointer)
+         * @param errorText Error message to display if error occurs
+         * 
+         * These overloaded functions handle different types of errors:
+         * - CUDA runtime errors (cudaError_t)
+         * - cuBLAS errors (cublasStatus_t) 
+         * - Memory allocation errors (null float pointers)
+         * - Generic error messages (string only)
+         *
+         * If an error is detected:
+         * 1. Prints error message to console
+         * 2. Frees Tensor resources
+         * 3. Exits program
+         *
+         * @note These are const member functions that don't modify the Tensor state
+         */
+        void handleError(cudaError_t err, std::string errorText) const;
+        /**
+         * @brief Error handling functions for various error types in Tensor operations
+         * 
+         * @param err Error object to check (cudaError_t)
+         * @param errorText Error message to display if error occurs
+         * 
+         * These overloaded functions handle different types of errors:
+         * - CUDA runtime errors (cudaError_t)
+         * - cuBLAS errors (cublasStatus_t) 
+         * - Memory allocation errors (null float pointers)
+         * - Generic error messages (string only)
+         *
+         * If an error is detected:
+         * 1. Prints error message to console
+         * 2. Frees Tensor resources
+         * 3. Exits program
+         *
+         * @note These are const member functions that don't modify the Tensor state
+         */
+        void handleError(cublasStatus_t err, std::string errorText) const;
+        /**
+         * @brief Error handling functions for various error types in Tensor operations
+         * 
+         * @param err Error object to check (cublasStatus_t)
+         * @param errorText Error message to display if error occurs
+         * 
+         * These overloaded functions handle different types of errors:
+         * - CUDA runtime errors (cudaError_t)
+         * - cuBLAS errors (cublasStatus_t) 
+         * - Memory allocation errors (null float pointers)
+         * - Generic error messages (string only)
+         *
+         * If an error is detected:
+         * 1. Prints error message to console
+         * 2. Frees Tensor resources
+         * 3. Exits program
+         *
+         * @note These are const member functions that don't modify the Tensor state
+         */
+        void handleError(float* err, std::string errorText) const;
+        /**
+         * @brief Error handling functions for various error types in Tensor operations
+         * 
+         * @param errorText Error message to display if error occurs
+         * 
+         * These overloaded functions handle different types of errors:
+         * - CUDA runtime errors (cudaError_t)
+         * - cuBLAS errors (cublasStatus_t) 
+         * - Memory allocation errors (null float pointers)
+         * - Generic error messages (string only)
+         *
+         * If an error is detected:
+         * 1. Prints error message to console
+         * 2. Frees Tensor resources
+         * 3. Exits program
+         *
+         * @note These are const member functions that don't modify the Tensor state
+         */
+        void handleError(std::string errorText) const;
 
         // MATH
 
@@ -404,6 +476,13 @@ class Tensor {
          * @return Pointer to new tensor with l2 loss of <this> and <other>
          */
         Tensor* l2(Tensor &other);
+
+        // Matrix operations
+
+        /**
+         * @brief Transposes the Tensor in place
+         */
+        void transpose();
 };
 
 #endif

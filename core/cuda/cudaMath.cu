@@ -19,7 +19,7 @@ cudaError_t tensoradd(float* d_targetMemorySpace, float* d_tensor1, unsigned int
 
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(tensorSize1);
     
-    __addTensorEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor1, d_tensor2);
+    __addTensorEntries<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor1, d_tensor2);
 
     // check for errors
     cudaError_t err = cudaGetLastError();
@@ -45,7 +45,7 @@ cudaError_t vecsub(float* d_targetMemorySpace, float* d_vector1, unsigned int ve
 
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(vectorSize1);
     
-    __subtractVecEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_vector1, d_vector2);
+    __subtractVecEntries<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_vector1, d_vector2);
 
     // check for errors
     cudaError_t err = cudaGetLastError();
@@ -65,7 +65,7 @@ cudaError_t scaletensor(float* d_targetMemorySpace, float* d_tensor, unsigned in
 
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(tensorSize);
     
-    __scaleEntries<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_targetMemorySpace, d_tensor, scalar);
+    __scaleEntries<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor, scalar);
 
     // check for errors
     cudaError_t err = cudaGetLastError();

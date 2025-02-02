@@ -278,3 +278,93 @@ float* matmulAlloc(cublasHandle_t* handle, int ax, int ay, int bx, int by, const
     // return pointer to result
     return C;
 }
+
+__global__ void __elementWiseL2Loss(float* d_result, float* d_predicted, float* d_actual) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    float dif = d_predicted[i] - d_actual[i];
+    d_result[i] = dif*dif;
+}
+
+__global__ void addUp(float* d_result, float* d_target, unsigned int elements, unsigned int stop) {
+    float sum = 0.0f;
+
+    // calculate start-index
+    unsigned int start = (blockIdx.x * blockDim.x + threadIdx.x) * elements;
+
+    // add values of a section
+    for (unsigned int i=start; (i < start + elements) && (i < stop); i++) {
+        sum += d_target[i];
+    }
+
+    // perform mutually exclusive add operation
+    atomicAdd(d_result, sum);
+}
+
+float* l2LossAlloc(float* d_predicted, float* d_actual, std::pair<unsigned int, unsigned int> shape_predicted, std::pair<unsigned int, unsigned int> shape_actual) {
+    // check if Tensors are vectors
+    if (shape_predicted.second != 1 || shape_actual.second != 1) {
+        printf("Error: L2 Loss is only defined for two vectors of equal size, apply transpose if you want to calculate the L2 Loss of a row-vector\n\n");
+        return nullptr;
+    }
+
+    // check if size of vectors is equal
+    if (shape_predicted.first != shape_actual.first) {
+        printf("Error: L2 Loss is only defined for two vectors of equal size.\n");
+        return nullptr;
+    }
+
+    // allocate some memory to carry out calculations quicker
+    float* d_calcMem = reserveMemoryOnDevice(shape_predicted.first);
+
+    // check for errors during memory allocation
+    if (d_calcMem == nullptr) {
+        printf("Error: An error occured during memory allocation in l2LossAlloc\n\n");
+        return nullptr;
+    }
+
+    // compute optimal block/thread distribution
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(shape_predicted.first);
+
+    // calculate element-wise (predicted[i]-actual[i])^2 and store individual results (not summed up yet) in calcMem
+    __elementWiseL2Loss<<<blocksThreads.first, blocksThreads.second>>>(d_calcMem, d_predicted, d_actual);
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    // error checking/handling
+    CHECK_CUDA_ERROR(cudaGetLastError());
+
+    // allocate memory for result
+    float* d_result = reserveMemoryOnDevice(1);
+
+    // check for errors during memory allocation
+    if (d_result == nullptr) {
+        printf("Error: An error occurred during result memory allocation in l2LossAlloc.\n");
+        return nullptr;
+    }
+
+    // init memory
+    cudaMemset(d_result, 0.0f, sizeof(float));
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    // hyperparamters, every thread should handle k elements
+    unsigned int k = 10;
+    unsigned int blockSize = 32;
+    unsigned int blocks = (shape_predicted.first + (k * blockSize - 1)) / (k * blockSize);
+
+    // add everything up
+    addUp<<<blocks, blockSize>>>(d_result, d_calcMem, k, shape_predicted.first);
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    // error checking/handling
+    CHECK_CUDA_ERROR(cudaGetLastError());
+
+    // free intermediate calculation memory
+    CHECK_CUDA_ERROR(cudaFree(d_calcMem));
+
+    return d_result;
+}

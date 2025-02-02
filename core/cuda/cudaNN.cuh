@@ -206,5 +206,30 @@ float* tensorsubAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vecto
  */
 float* matmulAlloc(cublasHandle_t* handle, int ax, int ay, int bx, int by, const float *A, const float *B);
 
+/**
+ * @brief Computes element-wise squared differences between predicted and actual values
+ * @param d_result Output array to store squared differences
+ * @param d_predicted Array of predicted values
+ * @param d_actual Array of actual/target values
+ */
+__global__ void __elementWiseL2Loss(float* d_result, float* d_predicted, float* d_actual);
+/** 
+ * @brief addUp Performs parallel reduction to sum up array elements in blocks
+ * @param d_result Pointer to single float to store final sum
+ * @param d_target Array to sum up
+ * @param elements Number of elements each thread should process
+ * @param stop Upper bound for summation
+ */
+__global__ void addUp(float* d_result, float* d_target, unsigned int elements, unsigned int stop);
+/**
+ * @brief l2LossAlloc Allocates memory and computes L2 Loss between predicted and actual vectors
+ * @param d_predicted Device pointer to predicted values
+ * @param d_actual Device pointer to actual/target values  
+ * @param shape_predicted Shape of predicted tensor (must be vector)
+ * @param shape_actual Shape of actual tensor (must be vector)
+ * @return Device pointer to single float containing L2 Loss value, or nullptr if error occurs
+ * @note Only works with column vectors (shape.second must be 1)
+ */
+float* l2LossAlloc(float* d_predicted, float* d_actual, std::pair<unsigned int, unsigned int> shape_predicted, std::pair<unsigned int, unsigned int> shape_actual);
 
 #endif

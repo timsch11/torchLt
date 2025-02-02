@@ -185,6 +185,21 @@ class PyTensor:
         """
         pass
 
+    def l2(self, other: 'PyTensor') -> 'PyTensor':
+        """
+        L2 Loss: <self> represents prediction, <other> represents actual values
+
+        Args:
+            other (Tensor): PyTensor to represent truth-value
+
+        Returns:
+            PyTensor: New PyTensor containing L2 Loss
+
+        Raises:
+            TypeError: If other is not a PyTensor
+        """
+        pass
+
     def relu(self) -> 'PyTensor':
         """
         Apply ReLU activation function element-wise.
@@ -211,6 +226,11 @@ class PyTensor:
             PyTensor: New PyTensor with tanh activation applied
         """
         pass
+
+    def transpose(self):
+        """
+        Transposes tensor in-place
+        """
 
     def __add__(self, other: 'PyTensor') -> 'PyTensor':
         """Operator overload for +"""

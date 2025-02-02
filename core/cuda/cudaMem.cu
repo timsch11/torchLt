@@ -67,7 +67,7 @@ float* constants(unsigned int size, float constant) {
     }
 
     // launch kernel
-    __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_memoryAllocation, constant);
+    __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_memoryAllocation, constant);
 
      // check for errors
     cudaError_t err = cudaGetLastError();
@@ -88,7 +88,7 @@ cudaError_t constants(float* d_value, unsigned int size, float constant) {
     std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
     // launch kernel
-    __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_value, constant);
+    __initMemCell<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_value, constant);
 
     // check for errors
     cudaError_t err = cudaGetLastError();
@@ -118,9 +118,9 @@ cudaError_t cudaMemDup(float* d_source, float* d_destination, unsigned int size,
 
     // select which kernel to use for copying
     if (transpose) {
-        __transposeMemDup<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_source, d_destination, size);
+        __transposeMemDup<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination, size);
     } else {
-        __memDup<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_source, d_destination);
+        __memDup<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination);
     }
 
     // check for errors
@@ -154,7 +154,7 @@ cudaError_t weight_init(float* d_targetMemorySpace, unsigned int size, float sca
     std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
 
     // run kernel
-    __cuda_weight_init<<<blockThreadAllocation.first, blockThreadAllocation.second, 0, 0>>>(d_targetMemorySpace, size, scaling_factor, seed);
+    __cuda_weight_init<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_targetMemorySpace, size, scaling_factor, seed);
 
     // check for errors
     cudaError_t err = cudaGetLastError();
