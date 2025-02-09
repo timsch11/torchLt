@@ -39,6 +39,16 @@ cdef extern from "Tensor.h":
         Tensor* sub(Tensor& other)
         Tensor* matmul(Tensor& other)
         Tensor* hadamardProduct(Tensor& other)
+
+        # Value acceses and slicing
+        Tensor* getRows(unsigned int fromRow, unsigned int toRow)
+        Tensor* getCols(unsigned int fromCol, unsigned int toCol);
+        Tensor* getVal(unsigned int row, unsigned int col);
+        Tensor* get(unsigned int fromRow, unsigned int toRow, unsigned int fromCol, unsigned int toCol)
+
+        # Copy
+
+        Tensor* deepcopy()
         
         # Activation functions
         Tensor* relu()
@@ -230,7 +240,10 @@ cdef class PyTensor:
         if not self._tensor.getTrackGradient():
             return None
 
+        # load gradient into host memory
         cdef float* data = self._tensor.getGradientCPU()
+
+        # cache shapes
         cdef unsigned int shape_x = self._tensor.getShapeX()
         cdef unsigned int shape_y = self._tensor.getShapeY()
         
@@ -372,6 +385,68 @@ cdef class PyTensor:
         
     def __matmul__(self, PyTensor other):
         return self.matmul(other)
+
+    # values accesses and slicing
+
+    def __getitem__(self, index):
+        # create empty Tensor wrapper
+        result = PyTensor()
+
+        if isinstance(index, slice):
+            print(index)  # debug
+            # row slice
+            if index.step is not None and index.step != 1:
+                raise ValueError("Operation does not support step sizes different than 1 (yet)")
+
+            result._tensor = self._tensor.getRows(index.start, index.stop)
+
+        elif isinstance(index, tuple):
+            if len(index) > 2:
+                raise ValueError("Operation only supports up to two slices")
+
+            if isinstance(index[0], slice):
+                if index[0].step is not None and index[0].step != 1:
+                    raise ValueError("Operation does not support step sizes different than 1 (yet)")
+
+                fromRow = index[0].start if index[0].start >= 0 else self.getShapeX() + index[0].start
+                toRow = index[0].stop if index[0].stop >= 0 else self.getShapeX() + index[0].stop
+            elif isinstance(index[0], int):
+                fromRow = index[0] if index[0] >= 0 else self.getShapeX() + index[0]
+                toRow = fromRow + 1
+
+            if isinstance(index[1], slice):
+                if index[1].step is not None and index[1].step != 1:
+                    raise ValueError("Operation does not support step sizes different than 1 (yet)")
+
+                fromCol = index[1].start if index[1].start >= 0 else self.getShapeY() + index[1].start
+                toCol = index[1].stop if index[1].stop >= 0 else self.getShapeY() + index[1].stop
+            elif isinstance(index[1], int):
+                fromCol = index[1] if index[1] >= 0 else self.getShapeY() + index[1]
+                toCol = fromCol + 1
+
+            
+            result._tensor = self._tensor.get(fromRow, toRow, fromCol, toCol)
+
+        elif isinstance(index, int):
+            # Single element indexing (a scalar) -> return row
+            result._tensor = self._tensor.getRows(index, index + 1) if index >= 0 else self._tensor.getRows(self.getShapeX() + index, self.getShapeX() + index + 1)
+
+        else: 
+            raise TypeError("unsupported type for slicing")
+
+        return result
+
+    """Copy"""
+
+    def deepcopy(this):
+        # create empty Tensor wrapper
+        result = PyTensor()
+
+        result._tensor = this._tensor.deepcopy()
+        return result
+
+    def get(self, fromRow: int, toRow: int, fromCol: int, toCol: int):
+        return self[fromRow:toRow, fromCol:toCol]
 
     """init cuda"""
 

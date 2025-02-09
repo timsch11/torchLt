@@ -31,8 +31,8 @@ cudaError_t tensoradd(float* d_targetMemorySpace, float* d_tensor1, unsigned int
 }
 
 __global__ void __subtractVecEntries(float* d_targetMemorySpace, float* d_vec1, float* d_vec2) {
-    int ind = blockIdx.x * blockDim.x + threadIdx.x;
-    d_targetMemorySpace[ind] = d_vec1[ind] - d_vec2[ind];
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    d_targetMemorySpace[i] = d_vec1[i] - d_vec2[i];
 }
 
 cudaError_t vecsub(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2) {
@@ -77,8 +77,8 @@ cudaError_t scaletensor(float* d_targetMemorySpace, float* d_tensor, unsigned in
 }
 
 __global__ void __hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2) {
-    int ind = blockIdx.x * blockDim.x + threadIdx.x;
-    d_targetMemorySpace[ind] = d_tensor1[ind] * d_tensor2[ind];
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    d_targetMemorySpace[i] = d_tensor1[i] * d_tensor2[i];
 }
 
 cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2, std::pair<unsigned int, unsigned int> shape) {

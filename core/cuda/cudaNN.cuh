@@ -195,10 +195,21 @@ float* tensoraddAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vecto
 float* tensorsubAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2);
 
 /**
+ * @brief Computes the matrix multiplication of A and B and stores result in C
+ * @param handle Pointer to the cuBLAS handle
+ * @param opA Operation that is applied to A
+ * @param opB Operation that is applied to B
+ * @param ax Number of rows of A (ShapeX)
+ * @param ay Number of columns of A (ShapeY)
+ * @param bx Number of rows of B (ShapeX)
+ * @param by Number of columns of B (ShapeY)
+ */
+float* matmul__ATB(cublasHandle_t* handle, int ax, int ay, int bx, int by, const float *A, const float *B, float *C);
+float* matmul__ABT(int ax, int ay, int bx, int by, const float *A, const float *B, float *C);
+
+/**
  * @brief Computes the matrix multiplication of A and B and stores result in newly allocated array
  * @param handle Pointer to the cuBLAS handle
- * @param transa 
- * @param transb
  * @param ax Number of rows of A (ShapeX)
  * @param ay Number of columns of A (ShapeY)
  * @param bx Number of rows of B (ShapeX)

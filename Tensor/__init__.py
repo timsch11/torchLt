@@ -232,6 +232,14 @@ class PyTensor:
         Transposes tensor in-place
         """
 
+    def get(self, fromRow: int, toRow: int, fromCol: int, toCol: int) -> 'PyTensor':
+        """returns the specified sub-Tensor, upper bounds are excluded"""
+        pass
+
+    def deepcopy(this) -> 'PyTensor':
+        """returns a deepcopy of this Tensor without gradient data"""
+        pass
+
     def __add__(self, other: 'PyTensor') -> 'PyTensor':
         """Operator overload for +"""
         pass

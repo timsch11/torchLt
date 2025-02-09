@@ -200,6 +200,54 @@ class Tensor {
          */
         unsigned int getSize() const;
         /**
+         * @brief Retrieves rows from the tensor (0 indexed).
+         *
+         * This function returns a pointer to a new Tensor that represents the specified row of the current tensor.
+         *
+         * @param fromRow The starting row index of the sub-tensor (inclusive).
+         * @param toRow The ending row index of the sub-tensor (exclusive).
+         * @return Tensor* Pointer to a Tensor representing the specified rows.
+         */
+        Tensor* getRows(unsigned int fromRow, unsigned int toRow);
+        /**
+         * @brief Retrieves columns from the tensor (0 indexed).
+         *
+         * This function returns a pointer to a new Tensor that represents the specified column of the current tensor.
+         *
+         * @param row The row index of the element to retrieve.
+         * @param col The column index of the element to retrieve.
+         * @return Tensor* Pointer to a Tensor representing the specified column.
+         */
+        Tensor* getCols(unsigned int fromCol, unsigned int toCol);
+        /**
+         * @brief Retrieves a specific element from the tensor (0 indexed).
+         *
+         * This function returns a pointer to a new Tensor that holds the value at the specified row and column in the current tensor.
+         *
+         * @param row The row index of the element to retrieve.
+         * @param col The column index of the element to retrieve.
+         * @return Tensor* Pointer to a Tensor representing the element at the specified location.
+         */
+        Tensor* getVal(unsigned int row, unsigned int col);
+        /**
+         * @brief Retrieves a sub-tensor defined by the specified range (0 indexed).
+         *
+         * This function returns a pointer to a new Tensor that represents a sub-region of the current tensor,
+         * defined by the starting and ending indices for both rows and columns.
+         *
+         * @param fromRow The starting row index of the sub-tensor (inclusive).
+         * @param toRow The ending row index of the sub-tensor (exclusive).
+         * @param fromCol The starting column index of the sub-tensor (inclusive).
+         * @param toCol The ending column index of the sub-tensor (exclusive).
+         * @return Tensor* Pointer to a Tensor representing the specified sub-region.
+         */
+        Tensor* get(unsigned int fromRow, unsigned int toRow, unsigned int fromCol, unsigned int toCol);
+        /**
+         * @brief Returns a deepcopy of this Tensor without gradient data
+         * @return Deepcopy of this Tensor
+         */
+        Tensor* deepcopy();
+        /**
          * @brief Get pointer to first argument tensor used in operation
          * @return Tensor* - pointer to first argument tensor
          */
@@ -247,6 +295,14 @@ class Tensor {
 
         // SETTER
 
+        /**
+         * @brief Enables gradient tracking
+         */
+        void enableGradientTracking();
+        /**
+         * @brief Disables gradient tracking
+         */
+        void disableGradientTracking();
         /**
          * @brief Changes the gradient status of the tensor (if gradient is tracked)
          * @param _gradientSet Boolean indicating whether gradient is set

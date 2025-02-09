@@ -43,8 +43,8 @@ float* reluAlloc(float* d_vector, unsigned int size) {
 }
 
 __global__ void __sigmoid(float* d_targetMemorySpace, float* d_tensor) {
-    unsigned int ind = blockIdx.x * blockDim.x + threadIdx.x;
-    d_targetMemorySpace[ind] = 1.0f / (1.0f + expf(-d_tensor[ind]));
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    d_targetMemorySpace[i] = 1.0f / (1.0f + expf(-d_tensor[i]));
 }
 
 cudaError_t sigmoid(float* d_targetMemorySpace, float* d_tensor, unsigned int size) {
@@ -83,8 +83,8 @@ float* sigmoidAlloc(float* d_tensor, unsigned int size) {
 }
 
 __global__ void __tanh(float* d_targetMemorySpace, float* d_tensor) {
-    unsigned int ind = blockIdx.x * blockDim.x + threadIdx.x;
-    d_targetMemorySpace[ind] = 1.0f - (2.0f / (expf(2.0f * d_tensor[ind]) + 1));
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    d_targetMemorySpace[i] = 1.0f - (2.0f / (expf(2.0f * d_tensor[i]) + 1));
 }
 
 cudaError_t tanh(float* d_targetMemorySpace, float* d_tensor, unsigned int size) {
@@ -209,31 +209,108 @@ float* tensoraddAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vecto
     return d_result;
 }
 
-float* tensorsubAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2) {
-    // check for compatibility
-    if (vectorSize1 != vectorSize2) {
-        printf("incompatible shapes for vector subtraction");
+
+#define TILE_DIM 16
+
+
+__global__ void __matMulTiled(float *A, float *B, float *C, int M, int N, int K) {
+    // Block index
+    int blockRow = blockIdx.y;
+    int blockCol = blockIdx.x;
+
+    // Thread index within the block
+    int row = threadIdx.y;
+    int col = threadIdx.x;
+
+    // Shared memory for sub-matrices A and B^T
+    __shared__ float A_shared[TILE_DIM][TILE_DIM];
+    __shared__ float B_shared[TILE_DIM][TILE_DIM];
+
+    float C_value = 0.0f;
+
+    // Loop over sub-matrices of A and B^T
+    for (int m = 0; m < (K + TILE_DIM - 1) / TILE_DIM; ++m) {
+        // Load data into shared memory (A and B^T)
+        if (row < TILE_DIM && m * TILE_DIM + col < K) {
+            A_shared[row][col] = A[(blockRow * TILE_DIM + row) * K + m * TILE_DIM + col];
+        } else {
+            A_shared[row][col] = 0.0f;
+        }
+        if (col < TILE_DIM && m * TILE_DIM + row < K && blockCol * TILE_DIM + col < N) {
+            B_shared[row][col] = B[(blockCol * TILE_DIM + col) * K + (m * TILE_DIM + row)];
+        } else {
+            B_shared[row][col] = 0.0f;
+        }
+
+        // Synchronize to ensure the data is loaded into shared memory
+        __syncthreads();
+
+        // Compute the partial dot product
+        for (int k = 0; k < TILE_DIM; ++k) {
+            C_value += A_shared[row][k] * B_shared[k][col];
+        }
+
+        // Synchronize to load the next sub-matrix
+        __syncthreads();
+    }
+
+    // Store the result in the output matrix C
+    if (row < TILE_DIM && blockRow * TILE_DIM + row < M && blockCol * TILE_DIM + col < N) {
+        C[(blockRow * TILE_DIM + row) * N + blockCol * TILE_DIM + col] = C_value;
+    }
+}
+
+float* matmul__ABT(int ax, int ay, int bx, int by, float *A, float *B, float *C) {
+    // Check for dimension compatibility: inner dimensions must match.
+    if (ay != by) {
+        printf("invalid shapes for matrix multiplication AB^T");
         return nullptr;
     }
 
-    // allocate memory
-    float* d_result = reserveMemoryOnDevice(vectorSize1);
+    dim3 blockDim(TILE_DIM, TILE_DIM);
+    dim3 gridDim((bx + TILE_DIM - 1) / TILE_DIM, (ax + TILE_DIM - 1) / TILE_DIM); // Grid size
 
-    if (d_result == nullptr) {
-        printf("Error when allocating memory in hadamardAlloc");
+    __matMulTiled<<<gridDim, blockDim>>>(A, B, C, ax, bx, ay);
+
+    cudaDeviceSynchronize();
+
+    cudaError_t error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+    }
+    return C;
+}
+
+float* matmul__ATB(cublasHandle_t* handle, int ax, int ay, int bx, int by, const float *A, const float *B, float *C) {
+    // Check for dimension compatibility: inner dimensions must match.
+    if (ax != bx) {
+        printf("invalid shapes for matrix multiplication");
         return nullptr;
     }
 
-    // perform computation
-    cudaError_t err = vecsub(d_result, d_vector1, vectorSize1, d_vector2, vectorSize2);
+    float alpha = 1.0f;
+    float beta = 0.0f;
+    cublasStatus_t matmulStatus;
 
-    if (err != cudaSuccess) {
-        printf("Error when performing sub");
+    // (B^TA)^T = rowmajor(AB)
+    matmulStatus = cublasSgemm_v2(*handle,
+        CUBLAS_OP_N, CUBLAS_OP_T, // No (second) transpose for both A and B
+        by, ay, bx, // # ax -> ay
+        &alpha, B, by, // A is m x k
+        A, ay, // B is k x n
+        &beta, C, by); // C is m x n
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    if (matmulStatus != CUBLAS_STATUS_SUCCESS) {
+        cudaFree(C);
+        std::cout << "matrix multiplication failed: " << std::string(cublasGetStatusString(matmulStatus));
         return nullptr;
     }
 
-    // return pointer to result
-    return d_result;
+    // C is stored in device memory; it represents the result in row-major format.
+    return C;
 }
 
 float* matmulAlloc(cublasHandle_t* handle, int ax, int ay, int bx, int by, const float *A, const float *B) {
@@ -260,7 +337,7 @@ float* matmulAlloc(cublasHandle_t* handle, int ax, int ay, int bx, int by, const
     // rowMajor(A) = columnMajor(A)T
     // this function essentially computes C = (BT AT)T
     matmulStatus = cublasSgemm_v2(*handle,
-                CUBLAS_OP_N, CUBLAS_OP_N, // No transpose for both A and B
+                CUBLAS_OP_N, CUBLAS_OP_N, // No (second) transpose for both A and B
                 by, ax, bx,
                 &alpha, B, by, // A is m x k
                 A, bx, // B is k x n
@@ -288,7 +365,7 @@ __global__ void __elementWiseL2Loss(float* d_result, float* d_predicted, float* 
 __global__ void addUp(float* d_result, float* d_target, unsigned int elements, unsigned int stop) {
     float sum = 0.0f;
 
-    // calculate start-index
+    // calculate start index
     unsigned int start = (blockIdx.x * blockDim.x + threadIdx.x) * elements;
 
     // add values of a section

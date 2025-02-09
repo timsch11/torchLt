@@ -100,16 +100,16 @@ cudaError_t constants(float* d_value, unsigned int size, float constant) {
 }
 
 __global__ void __transposeMemDup(float* d_source, float* d_destination, int size) {
-    int ind = size - blockIdx.x * blockDim.x + threadIdx.x;
+    int i = size - blockIdx.x * blockDim.x + threadIdx.x;
     if (size >= 0) {
-        d_destination[ind] = d_source[ind];
+        d_destination[i] = d_source[i];
     }
 }
 
 __global__ void __memDup(float* d_source, float* d_destination) {
     // calculate index, block is responsible for arr[n] to arr[n+blockSize] elements to leverage coalescing access
-    unsigned int ind = blockIdx.x * blockDim.x + threadIdx.x;
-    d_destination[ind] = d_source[ind];
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    d_destination[i] = d_source[i];
 }
 
 cudaError_t cudaMemDup(float* d_source, float* d_destination, unsigned int size, bool transpose) {
@@ -139,13 +139,13 @@ __global__ void __cuda_weight_init(float* weights, unsigned int size, float scal
     curandState state;
 
     // set index
-    int ind = blockDim.x * blockIdx.x + threadIdx.x;
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     // init curand
-    curand_init(seed + ind, blockIdx.x, 0, &state);
+    curand_init(seed + i, blockIdx.x, 0, &state);
 
     // set weight
-    weights[ind] = curand_normal(&state) * sqrtf(scalingFactor);
+    weights[i] = curand_normal(&state) * sqrtf(scalingFactor);
 }
 
 cudaError_t weight_init(float* d_targetMemorySpace, unsigned int size, float scaling_factor, int seed) {
