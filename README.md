@@ -51,12 +51,12 @@ The library implements a tensor-based computational framework supporting automat
 $env:CUDA_PATH = "path/to/cuda"  # Windows
 ```
 
-2. Build C++ library:
+Build C++ library (if you want to use the c++ library):
 ```powershell
 .\buildscripts\cppbuild.ps1  # Windows
 ```
 
-3. Build Python extension:
+Build Python extension (if you want to use the python API):
 ```powershell
 .\buildscripts\pybuild.ps1   # Windows
 ```
