@@ -1,6 +1,6 @@
-# cudaNN - A CUDA-Accelerated Neural Network Library
+# cuTensor - A CUDA-Accelerated Neural Network Library
 
-cudaNN is a high-performance neural network library that leverages CUDA for GPU acceleration. It provides a Python interface while maintaining the computational efficiency of CUDA C++.
+cuTensor is a high-performance neural network library that leverages CUDA for GPU acceleration. It provides a Python interface while maintaining the computational efficiency of CUDA C++.
 
 ## Overview
 
