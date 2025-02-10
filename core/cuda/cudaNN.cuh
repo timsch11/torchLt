@@ -243,4 +243,6 @@ __global__ void addUp(float* d_result, float* d_target, unsigned int elements, u
  */
 float* l2LossAlloc(float* d_predicted, float* d_actual, std::pair<unsigned int, unsigned int> shape_predicted, std::pair<unsigned int, unsigned int> shape_actual);
 
+float* dotAlloc(cublasHandle_t* handle, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2);
+
 #endif

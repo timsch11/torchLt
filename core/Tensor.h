@@ -82,6 +82,7 @@ class Tensor {
         void (*gradFunction)(Tensor*);
 
     public:
+    
         /**
          * @brief Constructor for creating a Tensor of specified shape initalized with values from the specified initalization_function
          * @param _shape Shape of the Tensor
@@ -89,7 +90,8 @@ class Tensor {
          * @param seed Seed to be used if initalization is random
          * @param initalization_function Function to use for value initalization, params must match (float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed)
          */
-        Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed, void(*initalization_function)(float*, unsigned int, unsigned int, int));
+        Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed, cudaError_t(*initalization_function)(float*, unsigned int, unsigned int, int));
+        
         /**
          * @brief Constructor for creating a Tensor as result of a unary operation
          * @param _d_value Pointer to device memory containing tensor values
@@ -100,6 +102,7 @@ class Tensor {
          * @param _shapeFuncArg1 Shape of the input tensor
          */
         Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1);
+        
         /**
          * @brief Constructor for creating a Tensor as result of a binary operation
          * @param _d_value Pointer to device memory containing tensor values 
@@ -112,6 +115,7 @@ class Tensor {
          * @param _shapeFuncArg2 Shape of second input tensor
          */
         Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1, Tensor* _d_funcArg2, std::pair<unsigned int, unsigned int> _shapeFuncArg2);
+        
         /**
          * @brief Constructor for creating a leaf Tensor
          * @param _d_value Pointer to device memory containing tensor values
@@ -119,6 +123,7 @@ class Tensor {
          * @param _track_gradient Whether to track gradients for this tensor
          */
         Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient);
+
         /**
          * @brief Destructor that frees device memory and handles cuBLAS cleanup
          */
@@ -154,6 +159,10 @@ class Tensor {
         */
         void removeReference();
 
+        /**
+         * @brief Return the reference count of this Tensor
+         */
+        int getReferenceCount();
 
         // GETTER
 
@@ -162,43 +171,51 @@ class Tensor {
          * @return float* Pointer to the tensor's value data stored on device (GPU) memory
          */
         float* getValue() const;
+
         /**
          * @brief Gets the pointer to the tensor's value data on CPU memory
          * @return float* Pointer to the tensor's value data stored on host (CPU) memory
          * @note take care of the deletion since the return value is a pointer
          */
         float* getValueCPU() const;
+
         /**
          * @brief Gets the pointer to the tensor's gradient data on GPU memory
          * @return float* Pointer to the tensor's gradient data stored on device (GPU) memory
          */
         float* getGradient() const;
+
         /**
          * @brief Gets the pointer to the tensor's gradient data on CPU memory
          * @return float* Pointer to the tensor's value data stored on host (CPU) memory
          * @note take care of the deletion since the return value is a pointer
          */
         float* getGradientCPU() const;
+
         /**
          * @brief Get the number of rows in the tensor
          * @return unsigned int - number of rows
          */
         unsigned int getShapeX() const;
+
         /**
          * @brief Get the number of columns in the tensor
          * @return unsigned int - number of columns
          */
         unsigned int getShapeY() const;
+
         /**
          * @brief Get the shape of the tensor as a pair of dimensions
          * @return std::pair<unsigned int, unsigned int> - (rows, columns)
          */
         std::pair<unsigned int, unsigned int> getShape() const;
+
         /**
          * @brief Get total number of elements in the tensor
          * @return unsigned int - product of rows and columns
          */
         unsigned int getSize() const;
+
         /**
          * @brief Retrieves rows from the tensor (0 indexed).
          *
@@ -209,6 +226,7 @@ class Tensor {
          * @return Tensor* Pointer to a Tensor representing the specified rows.
          */
         Tensor* getRows(unsigned int fromRow, unsigned int toRow);
+
         /**
          * @brief Retrieves columns from the tensor (0 indexed).
          *
@@ -219,6 +237,7 @@ class Tensor {
          * @return Tensor* Pointer to a Tensor representing the specified column.
          */
         Tensor* getCols(unsigned int fromCol, unsigned int toCol);
+
         /**
          * @brief Retrieves a specific element from the tensor (0 indexed).
          *
@@ -229,6 +248,7 @@ class Tensor {
          * @return Tensor* Pointer to a Tensor representing the element at the specified location.
          */
         Tensor* getVal(unsigned int row, unsigned int col);
+
         /**
          * @brief Retrieves a sub-tensor defined by the specified range (0 indexed).
          *
@@ -242,51 +262,61 @@ class Tensor {
          * @return Tensor* Pointer to a Tensor representing the specified sub-region.
          */
         Tensor* get(unsigned int fromRow, unsigned int toRow, unsigned int fromCol, unsigned int toCol);
+
         /**
          * @brief Returns a deepcopy of this Tensor without gradient data
          * @return Deepcopy of this Tensor
          */
         Tensor* deepcopy();
+
         /**
          * @brief Get pointer to first argument tensor used in operation
          * @return Tensor* - pointer to first argument tensor
          */
         Tensor* getArg1() const;
+
         /**
          * @brief Get pointer to second argument tensor used in operation
          * @return Tensor* - pointer to second argument tensor
          */
         Tensor* getArg2() const;
+
         /**
          * @brief Get shape of first argument tensor used in operation
          * @return std::pair<unsigned int, unsigned int> - (rows, columns) of first argument
          */
         std::pair<unsigned int, unsigned int> getShapeArg1() const;
+
         /**
          * @brief Get shape of second argument tensor used in operation
          * @return std::pair<unsigned int, unsigned int> - (rows, columns) of second argument
          */
         std::pair<unsigned int, unsigned int> getShapeArg2() const;
+
         /**
          * @brief Get pointer to CUDA stream associated with this tensor's computational graph
          * @return Pointer to cudaStream_t stream used for asynchronous operations
          */
         cudaStream_t* getGraphStream() const;
+
         /**
          * @brief Check if gradients should be tracked for this tensor
          * @return true if gradients are being tracked, false otherwise
          */
         bool getTrackGradient() const;
+
         /**
          * @brief Check if this tensor is a leaf node (has no dependencies)
          * @return true if tensor is a leaf node, false if it depends on other tensors
          */
         bool isLeaf() const;
+
         /**
          * @brief Check if gradient has been computed and set for this tensor
          * @return true if gradient is set, false otherwise
          */
         bool isGradientSet() const;
+
         /**
          * @brief Get size of computational graph below this tensor
          * @return Number of nodes in the subgraph where this tensor is root
@@ -299,20 +329,24 @@ class Tensor {
          * @brief Enables gradient tracking
          */
         void enableGradientTracking();
+
         /**
          * @brief Disables gradient tracking
          */
         void disableGradientTracking();
+
         /**
          * @brief Changes the gradient status of the tensor (if gradient is tracked)
          * @param _gradientSet Boolean indicating whether gradient is set
          */
         void changeGradientSet(bool _gradientSet);
+
         /**
          * @brief Sets the CUDA stream for gradient computation for this tensor and all preceding nodes in computation graph
          * @param graphStream Pointer to the CUDA stream to be set
          */
         void setGraphStreamForSubgraph(cudaStream_t* graphStream);
+
         /**
          * @brief Performs backward pass gradient computation through the computational graph
          * @note Calls the gradient function stored in the tensor to compute gradients if gradient tracking is enabled
@@ -330,6 +364,7 @@ class Tensor {
          * @return true if shapes are identical, false otherwise
          */
         bool sameShape(Tensor other) const;
+
         /**
          * @brief Checks if this tensor can be matrix multiplied with another tensor
          * @param other The tensor to check matrix multiplication compatibility with
@@ -357,6 +392,7 @@ class Tensor {
          * @note These are const member functions that don't modify the Tensor state
          */
         void handleError(cudaError_t err, std::string errorText) const;
+
         /**
          * @brief Error handling functions for various error types in Tensor operations
          * 
@@ -377,6 +413,7 @@ class Tensor {
          * @note These are const member functions that don't modify the Tensor state
          */
         void handleError(cublasStatus_t err, std::string errorText) const;
+
         /**
          * @brief Error handling functions for various error types in Tensor operations
          * 
@@ -397,6 +434,7 @@ class Tensor {
          * @note These are const member functions that don't modify the Tensor state
          */
         void handleError(float* err, std::string errorText) const;
+
         /**
          * @brief Error handling functions for various error types in Tensor operations
          * 
@@ -435,6 +473,17 @@ class Tensor {
         * @see matMulCompatible()
         */
         Tensor* matmul(Tensor &other);
+
+        /**
+         * @brief Performs a dot product operation between two tensors.
+         * 
+         * @param other The tensor to perform the dot product with.
+         * @return Tensor* Pointer to a new tensor containing the dot product result.
+         */
+        Tensor* dot(Tensor &other);
+
+        /*Tensor* scale(float scalar);*/
+
         /**
         * @brief Performs element-wise (Hadamard) multiplication of two tensors.
         * 
@@ -450,39 +499,51 @@ class Tensor {
         * @note The resulting tensor is allocated on the GPU
         */
         Tensor* hadamardProduct(Tensor &other);
+
         /**
          * @brief Adds two tensors element-wise
          * @param other The tensor to add to this tensor
          * @return Pointer to new tensor containing the element-wise sum
          */
         Tensor* add(Tensor &other);
+
         /**
          * @brief Subtracts two tensors element-wise
          * @param other The tensor to subtract from this tensor
          * @return Pointer to new tensor containing the element-wise difference
          */
         Tensor* sub(Tensor &other);
+        
+        /**
+         * @brief Performs one iteration of stochstic gradient descent on this tensors values
+         * @param lr Learning rate
+         * @note Requires gradient to be set
+         */
+        void sgd(float lr);
+
+        // OPERATOR OVERLOADING
+        
         /**
          * @brief Operator overload for addition
          * @param other The tensor to add to this tensor
          * @return Pointer to new tensor containing the element-wise sum
          */
-
-        // OPERATOR OVERLOADING
-        
         Tensor* operator+(Tensor &other);
+
         /**
          * @brief Operator overload for subtraction  
          * @param other The tensor to subtract from this tensor
          * @return Pointer to new tensor containing the element-wise difference
          */
         Tensor* operator-(Tensor &other);
+
         /**
          * @brief Operator overload for matrix multiplication
          * @param other The tensor to multiply with this tensor
          * @return Pointer to new tensor containing the matrix product
          */
         Tensor* operator*(Tensor &other);
+
         /**
          * @brief Operator overload for Hadamard (element-wise) product
          * @param other The tensor to multiply element-wise with this tensor
@@ -514,11 +575,13 @@ class Tensor {
          * @return Pointer to new tensor with ReLU applied
          */
         Tensor* relu();
+
         /**
          * @brief Applies sigmoid activation function element-wise
          * @return Pointer to new tensor with sigmoid applied
          */
         Tensor* sigmoid();
+
         /**
          * @brief Applies tanh activation function element-wise
          * @return Pointer to new tensor with tanh applied

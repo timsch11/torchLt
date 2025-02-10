@@ -100,7 +100,7 @@ cudaError_t constants(float* d_value, unsigned int size, float constant) {
 }
 
 __global__ void __transposeMemDup(float* d_source, float* d_destination, int size) {
-    int i = size - blockIdx.x * blockDim.x + threadIdx.x;
+    int i = size - (blockIdx.x * blockDim.x + threadIdx.x);
     if (size >= 0) {
         d_destination[i] = d_source[i];
     }
@@ -121,6 +121,72 @@ cudaError_t cudaMemDup(float* d_source, float* d_destination, unsigned int size,
         __transposeMemDup<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination, size);
     } else {
         __memDup<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination);
+    }
+
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    return err;
+}
+
+__global__ void __transposeMemDupScaled(float* d_source, float* d_destination, float* scalar, int size) {
+    int i = size - (blockIdx.x * blockDim.x + threadIdx.x);
+    if (size >= 0) {
+        d_destination[i] = *scalar * d_source[i];
+    }
+}
+
+__global__ void __memDupScaled(float* d_source, float* d_destination, float* scalar) {
+    // calculate index, block is responsible for arr[n] to arr[n+blockSize] elements to leverage coalescing access
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    d_destination[i] = *scalar * d_source[i];
+}
+
+cudaError_t cudaMemDupScaled(float* d_source, float* d_destination, float* scalar, unsigned int size, bool transpose) {
+    // calc block/thread allocation scheme 
+    std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
+
+    // select which kernel to use for copying
+    if (transpose) {
+        __transposeMemDupScaled<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination, scalar, size);
+    } else {
+        __memDupScaled<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination, scalar);
+    }
+
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    return err;
+}
+
+__global__ void __transposeMemDupScaled(float* d_source, float* d_destination, float scalar, int size) {
+    int i = size - (blockIdx.x * blockDim.x + threadIdx.x);
+    if (size >= 0) {
+        d_destination[i] = scalar * d_source[i];
+    }
+}
+
+__global__ void __memDupScaled(float* d_source, float* d_destination, float scalar) {
+    // calculate index, block is responsible for arr[n] to arr[n+blockSize] elements to leverage coalescing access
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    d_destination[i] = scalar * d_source[i];
+}
+
+cudaError_t cudaMemDupScaled(float* d_source, float* d_destination, float scalar, unsigned int size, bool transpose) {
+    // calc block/thread allocation scheme 
+    std::pair<unsigned int, unsigned int> blockThreadAllocation = computeBlockThreadAllocation(size);
+
+    // select which kernel to use for copying
+    if (transpose) {
+        __transposeMemDupScaled<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination, scalar, size);
+    } else {
+        __memDupScaled<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination, scalar);
     }
 
     // check for errors

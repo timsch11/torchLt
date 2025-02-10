@@ -101,3 +101,38 @@ cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tens
     // return error
     return err;
 }
+
+__global__ void __scaledSubtraction(float* d_targetMemorySpace, float* d_vec1, float* d_vec2, float scalar) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    d_targetMemorySpace[i] = d_vec1[i] - (scalar * d_vec2[i]);
+}
+
+cudaError_t scaledSubtraction(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2, float scalar) {
+
+    // check for vector compatibility
+    if (vectorSize1 != vectorSize2) {
+        printf("vectors to be subtracted have different shapes\n");
+        return cudaErrorInvalidValue;
+    }
+
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(vectorSize1);
+    
+    __scaledSubtraction<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_vector1, d_vector2, scalar);
+
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    return err;
+}
+
+cudaError_t dotAlloc(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2) {
+    if (vectorSize1 != vectorSize2) {
+        printf("Error: Incompatible shapes for dot product");
+        return cudaErrorInvalidValue;
+    }
+
+    
+}

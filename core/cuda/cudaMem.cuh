@@ -45,6 +45,26 @@ cudaError_t constants(float* d_value, unsigned int size, float constant);
 cudaError_t cudaMemDup(float* d_source, float* d_destination, unsigned int size, bool transpose = false);
 
 /**
+ * @brief Duplicates an array on device memory
+ * @param d_source Pointer to source array (that should be duplicated)
+ * @param d_destination Pointer to destination array (that should hold result)
+ * @param scalar Pointer to device scalar to multiply each element with
+ * @param size Size of array to be duplicated
+ * @param transpose Whether destination array should be the transposed version of source
+ */
+cudaError_t cudaMemDupScaled(float* d_source, float* d_destination, float* scalar, unsigned int size, bool transpose = false);
+
+/**
+ * @brief Duplicates an array on device memory
+ * @param d_source Pointer to source array (that should be duplicated)
+ * @param d_destination Pointer to destination array (that should hold result)
+ * @param scalar Scalar to multiply each element with
+ * @param size Size of array to be duplicated
+ * @param transpose Whether destination array should be the transposed version of source
+ */
+cudaError_t cudaMemDupScaled(float* d_source, float* d_destination, float scalar, unsigned int size, bool transpose = false);
+
+/**
  * @brief fills tensor of specified size with values sampled from a scaled random normal distribution: N~(0, sqrt(<scalingFactor>))
  * @param d_targetMemorySpace pointer to (padded) memory section that is to be initalized
  * @param size size of tensor (=number of total elements)

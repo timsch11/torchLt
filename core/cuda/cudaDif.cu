@@ -108,7 +108,9 @@ cudaError_t tanhGrad(float* d_targetMemorySpace, float* d_tensor, float* d_droot
 
 __global__ void __l2LossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_actual, float* d_droot_dthis) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    d_targetMemorySpace[i] = 2 * d_droot_dthis[i] * (d_predicted[i] - d_actual[i]);
+
+    // result of L2 loss is scalar -> d_droot_dthis is just a single value
+    d_targetMemorySpace[i] = 2 * *d_droot_dthis * (d_predicted[i] - d_actual[i]);
 }
 
 __global__ void __l2LossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_actual) {

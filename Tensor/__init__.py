@@ -16,7 +16,7 @@ if sys.platform == 'win32':
 
 """interface for PyTensor API"""
 class PyTensor:
-    def __init__(self, values: np.ndarray = [], shape: tuple = (), _track_gradient: bool = True, xavierInit: bool = False, kaimingHeInit: bool = False):
+    def __init__(self, values: np.ndarray = [], shape: tuple = (), _track_gradient: bool = True, xavierInit: bool = False, kaimingHeInit: bool = False, seed: int = 0):
         """
         Initialize a PyTensor object.
 
@@ -26,6 +26,7 @@ class PyTensor:
             _track_gradient (bool, optional): Whether to track gradients for backpropagation. Defaults to True.
             xavierInit (bool, optional): Use Xavier initialization for weights. Defaults to False.
             kaimingHeInit (bool, optional): Use Kaiming He initialization for weights. Defaults to False.
+            seed: Seed that is to be used for weight initalization (if chosen), default: random seed
 
         Raises:
             ValueError: If shape is invalid or initialization parameters conflict
@@ -185,6 +186,21 @@ class PyTensor:
         """
         pass
 
+    def dot(self, other: 'PyTensor') -> 'PyTensor':
+        """
+        Dot product with another PyTensor.
+
+        Args:
+            other (Tensor): PyTensor
+
+        Returns:
+            PyTensor: New PyTensor containing dot product
+
+        Raises:
+            TypeError: If other is not a PyTensor
+        """
+        pass
+
     def l2(self, other: 'PyTensor') -> 'PyTensor':
         """
         L2 Loss: <self> represents prediction, <other> represents actual values
@@ -254,6 +270,14 @@ class PyTensor:
         
     def __matmul__(self, other: 'PyTensor') -> 'PyTensor':
         """Operator overload for @ (matrix multiplication)"""
+        pass
+
+    def sgd(lr: float) -> 'PyTensor':
+        """Applies a stochastic gradient descent step to this tensor. Requires the gradient to be set."""
+        pass
+
+    def deepcopy(self) -> 'PyTensor':
+        """Returns a deepcopy without gradient data"""
         pass
 
     @staticmethod

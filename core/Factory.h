@@ -12,7 +12,34 @@
  * @param initalization_function Function to use for value initalization, params must match (float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed)
  */
 Tensor* createTensorFromInitFunction(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed, 
-    void(*initalization_function)(float*, unsigned int, unsigned int, int));
+    cudaError_t(*initalization_function)(float*, unsigned int, unsigned int, int));
+
+
+/**
+ * @brief Creates a Tensor object initialized with Xavier initialization.
+ *
+ * This function creates a Tensor object with the specified shape, gradient tracking option, 
+ * and seed for random number generation. The Tensor is initialized using the Xavier initialization method.
+ *
+ * @param _shape A pair representing the shape of the Tensor (rows, columns).
+ * @param _track_gradient A boolean indicating whether to track gradients for this Tensor.
+ * @param seed An integer seed for random number generation.
+ * @return A pointer to the created Tensor object.
+ */
+Tensor* createTensorWithXavierInit(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed);
+
+/**
+ * @brief Creates a Tensor object initialized with Kaiming He initialization.
+ *
+ * This function creates a Tensor object with the specified shape, gradient tracking option, 
+ * and seed for random number generation. The Tensor is initialized using the Kaiming He initialization method.
+ *
+ * @param _shape A pair representing the shape of the Tensor (rows, columns).
+ * @param _track_gradient A boolean indicating whether to track gradients for this Tensor.
+ * @param seed An integer seed for random number generation.
+ * @return A pointer to the created Tensor object.
+ */
+Tensor* createTensorWithKaimingHeInit(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed);
 
 /**
  * @brief Factory for creating a Tensor as result of a unary operation

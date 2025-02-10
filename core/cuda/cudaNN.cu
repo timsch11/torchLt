@@ -193,7 +193,7 @@ float* tensoraddAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vecto
     float* d_result = reserveMemoryOnDevice(vectorSize1);
 
     if (d_result == nullptr) {
-        printf("Error when allocating memory in hadamardAlloc");
+        printf("Error when allocating memory in tensoraddAlloc");
         return nullptr;
     }
 
@@ -209,11 +209,38 @@ float* tensoraddAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vecto
     return d_result;
 }
 
+float* tensorsubAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2) {
+    // check for compatibility
+    if (vectorSize1 != vectorSize2) {
+        printf("incompatible shapes for vector addition");
+        return nullptr;
+    }
+
+    // allocate memory
+    float* d_result = reserveMemoryOnDevice(vectorSize1);
+
+    if (d_result == nullptr) {
+        printf("Error when allocating memory in tensorsubAlloc");
+        return nullptr;
+    }
+
+    // perform computation
+    cudaError_t err = vecsub(d_result, d_vector1, vectorSize1, d_vector2, vectorSize2);
+
+    if (err != cudaSuccess) {
+        printf("Error when performing sub");
+        return nullptr;
+    }
+
+    // return pointer to result
+    return d_result;
+}
+
 
 #define TILE_DIM 16
 
 
-__global__ void __matMulTiled(float *A, float *B, float *C, int M, int N, int K) {
+__global__ void __matMulTiled(const float *A, const float *B, float *C, int M, int N, int K) {
     // Block index
     int blockRow = blockIdx.y;
     int blockCol = blockIdx.x;
@@ -260,7 +287,7 @@ __global__ void __matMulTiled(float *A, float *B, float *C, int M, int N, int K)
     }
 }
 
-float* matmul__ABT(int ax, int ay, int bx, int by, float *A, float *B, float *C) {
+float* matmul__ABT(int ax, int ay, int bx, int by, const float *A, const float *B, float *C) {
     // Check for dimension compatibility: inner dimensions must match.
     if (ay != by) {
         printf("invalid shapes for matrix multiplication AB^T");
@@ -442,6 +469,32 @@ float* l2LossAlloc(float* d_predicted, float* d_actual, std::pair<unsigned int, 
 
     // free intermediate calculation memory
     CHECK_CUDA_ERROR(cudaFree(d_calcMem));
+
+    return d_result;
+}
+
+float* dotAlloc(cublasHandle_t* handle, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2) {
+    if (vectorSize1 != vectorSize2) {
+        printf("Error: Incompatible shapes for dot product");
+        return nullptr;
+    }
+
+    // allocate memory
+    float* d_result = reserveMemoryOnDevice(1);
+
+    if (d_result == nullptr) {
+        printf("Error when allocating memory in dotAlloc");
+        return nullptr;
+    }
+
+    // perform computation
+    cublasStatus_t err = cublasSdot_v2(*handle, vectorSize1, d_vector1, 1, d_vector2, 1, d_result);
+
+    if (err != CUBLAS_STATUS_SUCCESS) {
+        cudaFree(d_result);
+        std::cout << "matrix multiplication failed: " << std::string(cublasGetStatusString(err));
+        return nullptr;
+    }
 
     return d_result;
 }

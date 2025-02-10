@@ -119,5 +119,6 @@ cudaError_t scaletensor(float* d_targetMemorySpace, float* d_tensor, unsigned in
 cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2,
                      std::pair<unsigned int, unsigned int> shape);
 
+cudaError_t scaledSubtraction(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2, float scalar);
 
 #endif

@@ -51,15 +51,15 @@ void destroy_cuBlas() {
 }
 
 // initalize leaf with values from a custom function
-Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed, void(*initalization_function)(float*, unsigned int, unsigned int, int))
+Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed, cudaError_t(*initalization_function)(float*, unsigned int, unsigned int, int))
 : Tensor(nullptr, _shape, _track_gradient) {
     this->d_value = reserveMemoryOnDevice( _shape.first * _shape.second);
 
     // error check
     this->handleError(this->d_value, "Error: Memory allocation failed");
 
-    // FUTURE #TODO
-    initalization_function(this->getValue(), _shape.first, _shape.second, seed);
+    // fill with values from initalization function
+    this->handleError(initalization_function(this->d_value, _shape.first, _shape.second, seed), "Error: Tensor initalization with values from custom function failed");
 }
 
 // initalize leaf
@@ -129,7 +129,6 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
     this->lowerGraphSize += _d_funcArg2->getLowerGraphSize();
 
     // merge graphStreams of subgraphs
-
     cudaStream_t* unifiedGraphStream;
 
     if (_d_funcArg1->getLowerGraphSize() >= _d_funcArg2->getLowerGraphSize()) {  // use graphStream of d_funcArg1
@@ -257,6 +256,10 @@ void Tensor::changeGradientSet(bool _gradientSet) {
 
 void Tensor::addReference() {
     (*refCount)++;
+}
+
+int Tensor::getReferenceCount() {
+    return *(this->refCount);
 }
 
 void Tensor::removeReference() {
@@ -479,6 +482,16 @@ bool Tensor::matMulCompatible(Tensor other) const {
     return this->getShapeY() == other.getShapeX();
 }
 
+void Tensor::sgd(float lr) {
+    if (!this->isGradientSet() || this->getGradient() == nullptr) {
+        printf("Error: Optimization step not possible because gradient is not set");
+        delete this;
+        exit(EXIT_FAILURE);
+    }
+
+    this->handleError(scaledSubtraction(this->getValue(), this->getValue(), this->getSize(), this->getGradient(), this->getSize(), lr), "Error: scaledSubtraction failed");
+}
+
 /**
  * @brief Computes the gradient for the addition operation in a computational graph.
  *
@@ -555,6 +568,10 @@ Tensor* Tensor::add(Tensor &other) {
     // check error
     this->handleError(d_result, "Error: Addition failed");
 
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+    other.changeGradientSet(false);
+
     return new Tensor(d_result, this->getShape(), true, &additionGradient, this, this->getShape(), &other, other.getShape());
 }
 
@@ -615,6 +632,10 @@ Tensor* Tensor::sub(Tensor &other) {
     // check error
     this->handleError(d_result, "Error: Subtraction failed");
 
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+    other.changeGradientSet(false);
+
     return new Tensor(d_result, this->getShape(), true, &subtractionGradient, this, this->getShape(), &other, other.getShape());
 }
 
@@ -627,7 +648,6 @@ Tensor* Tensor::operator-(Tensor &other) {
  * @param Pointer to the current tensor whose gradient is being computed
  */
 static void matmulGradient(Tensor* currentTensor) {
-    // TODO
     // cache tensors
     Tensor* A = currentTensor->getArg1();
     Tensor* B = currentTensor->getArg2();
@@ -644,7 +664,7 @@ static void matmulGradient(Tensor* currentTensor) {
 
         /* this tensors gradient is not set => we started to differentiate from here so no need to apply the chain rule (saves a multiplication with Identity matrix) */
         // dA = I * B^T = B^T
-        // IMPORTANT: THIS CASE IS ONLY DEFINED FOR MATMUL OPERATION THAT RESULT IN A SCALAR (SHAPE=(1, 1))
+        // IMPORTANT: THIS CASE IS ONLY DEFINED FOR MATMUL OPERATION THAT RESULT IN A SCALAR (SHAPE=(1, 1)) -> therefore multiplication with I is neglectable (shape would be 1x1)
         if (A->getTrackGradient()) {
             currentTensor->handleError(cudaMemDup(B->getValue(), A->getGradient(), B->getSize(), true), "Error: Duplicating memory in matmulGradient failed");  // size of B = size of B^T (size=#entries)
             A->changeGradientSet(true);
@@ -652,7 +672,7 @@ static void matmulGradient(Tensor* currentTensor) {
         // dB = A^T * I = A^T
         if (B->getTrackGradient()) {
             currentTensor->handleError(cudaMemDup(A->getValue(), B->getGradient(), A->getSize(), true), "Error: Duplicating memory in matmulGradient failed");
-            A->changeGradientSet(true);
+            B->changeGradientSet(true);
         }
 
     } else {
@@ -665,24 +685,32 @@ static void matmulGradient(Tensor* currentTensor) {
 
         // dA = gradOut_currTensor * B^T
         currentTensor->handleError(matmul__ABT(cx, cy, B->getShapeX(), B->getShapeY(), gradOut_currTensor, B->getValue(), A->getGradient()), "Error: Gradient calculation of arg1 of matmul failed");
+        A->changeGradientSet(true);
 
         // dB = A^T * gradOut_currTensor
         currentTensor->handleError(matmul__ATB(handle, A->getShapeX(), A->getShapeY(), cx, cy, A->getValue(), gradOut_currTensor, B->getGradient()), "Error: Gradient calculation of arg2 of matmul failed");
+        B->changeGradientSet(true);    
     }
 }
 
 Tensor* Tensor::matmul(Tensor &other) {
 
-    // increment reference count of results args (dependencies)
-    this->addReference();
-    other.addReference();
+    other.addReference();  // other's references are incremented twice (solve garbage collector fight)
 
     if (this->matMulCompatible(other)) {
+
+        // increment reference count of results args (dependencies)
+        this->addReference();
+        other.addReference();
 
         float* d_resultMatrix = matmulAlloc(handle, this->getShapeX(), this->getShapeY(), other.getShapeX(), other.getShapeY(), this->getValue(), other.getValue());
             
         // check error
         this->handleError(d_resultMatrix, "Error: Matrix multiplication failed");
+
+        // disable gradientSet flag
+        this->changeGradientSet(false);
+        other.changeGradientSet(false);
 
         // Create new tensor with its own memory space
         return new Tensor(d_resultMatrix, 
@@ -701,6 +729,120 @@ Tensor* Tensor::matmul(Tensor &other) {
 
 Tensor* Tensor::operator*(Tensor &other) {
     return matmul(other);
+}
+
+/*static void scaleGradient(Tensor* currentTensor) {
+    // cache arg1
+    Tensor* tensorGrad = currentTensor->getArg1();
+
+    // check if gradient is tracked
+    if (tensorGrad->getTrackGradient()) {
+
+        // compute gradient store in tensor's gradient attribute
+        if (currentTensor->isGradientSet()) {
+            // get partial gradient 
+            float* partialGrad = currentTensor->getGradient();
+
+            // multiply gradient with preceding partial gradient (chain rule)
+            // compute gradient store in tensor's gradient attribute, pass currentTensor's value for simplifying computation
+            currentTensor->handleError(tanhGrad(tensorGrad->getGradient(), currentTensor->getValue(), partialGrad, tensorGrad->getSize()), "Error: gradient calculation (operation: scalar multiplication) failed");
+        } else {
+            // no previous partial gradient
+            // compute gradient store in tensor's gradient attribute, pass currentTensor's value for simplifying computation
+            currentTensor->handleError(constants(tensorGrad->getGradient(), tensorGrad->getSize(), ), "Error: gradient calculation (operation: scalar multiplication) failed");
+        }
+
+        // set gradientSet flag
+        tensorGrad->changeGradientSet(true);
+    }
+}
+
+Tensor* Tensor::scale(float scalar) {
+    // increment reference count of results args (dependencies)
+    this->addReference();
+
+    // allocate memory
+    float* d_result = reserveMemoryOnDevice(this->getSize());
+
+    // check for errors during allocation
+    this->handleError(d_result, "Error: Memory allocation for scaling failed");
+
+    // error checking is done is hadamardAlloc
+    this->handleError(cudaMemDupScaled(this->getValue(), d_result, scalar, this->getSize(), false), "Error: Scaled memory copy for Tensor-scaling failed");
+
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+
+    // return new Tensor
+    return new Tensor(d_result, this->getShape(), true, scaleGradient, this, this->getShape());
+}*/
+
+/**
+ * @brief Computes and stores the derivatives of the dot product operation
+ * 
+ * Sets gradient for arg1 and arg2 of the current Tensor (if they track their gradient)
+ * Uses the chain rule to calculate the gradient
+ * @param currentTensor The Tensor this function is called for
+ */
+static void dotGradient(Tensor* currentTensor) {
+    // cache args
+    Tensor* arg1 = currentTensor->getArg1();
+    Tensor* arg2 = currentTensor->getArg2();
+
+    // if a gradient is set the gradient calculations needs to factor in the gradient wrt to this tensor (chain rule)
+    if (currentTensor->isGradientSet()) {
+        // partialGradient.shape = (1, 1) = scalar -> darg1 = partialGradient * arg2 and vice versa
+        // the gradient of the last computation in this computational graph wrt this Tensor
+        float* partialGradient = currentTensor->getGradient();
+
+        // calculate gradient, multiply with partialGradient, if gradient is tracked at all
+        if (arg1->getTrackGradient()) {
+            currentTensor->handleError(cudaMemDupScaled(arg2->getValue(), arg1->getGradient(), partialGradient, arg1->getSize(), false), "Error: Gradient calculation (operation: dot product) failed");
+            arg1->changeGradientSet(true);
+        }
+
+        if (arg2->getTrackGradient()) {
+            currentTensor->handleError(cudaMemDupScaled(arg1->getValue(), arg2->getGradient(), partialGradient, arg2->getSize(), false), "Error: Gradient calculation (operation: dot product) failed");
+            arg2->changeGradientSet(true);
+        }
+
+    } else {
+        // no need to apply chain rule since this is the root of the computational graph
+        if (arg1->getTrackGradient()) {
+            currentTensor->handleError(cudaMemDup(arg2->getValue(), arg1->getGradient(), arg1->getSize(), false), "Error: Gradient calculation (operation: dot product) failed");
+            arg1->changeGradientSet(true);
+        }
+
+        if (arg2->getTrackGradient()) {
+            currentTensor->handleError(cudaMemDup(arg1->getValue(), arg2->getGradient(), arg2->getSize(), false), "Error: Gradient calculation (operation: dot product) failed");
+            arg2->changeGradientSet(true);
+        }
+    }
+}
+
+Tensor* Tensor::dot(Tensor &other) {
+    // check vector
+    if (this->getShapeY() != 1 || other.getShapeY() != 1) {
+        printf("Error: Incompatible shapes for dot product\n");
+        delete this;
+        exit(EXIT_FAILURE);
+    }
+    // increment reference count of results args (dependencies)
+    this->addReference();
+    other.addReference();
+
+    // error checking is done is hadamardAlloc
+    float* d_result = dotAlloc(handle, this->getValue(), this->getShapeX(), other.getValue(), other.getShapeX());
+
+    // check error
+    this->handleError(d_result, "Error: Dot product failed");
+
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+    other.changeGradientSet(false);
+
+    // return new Tensor
+    return new Tensor(d_result, {1, 1}, true, dotGradient, this, this->getShape(), &other, other.getShape());
 }
 
 /**
@@ -755,7 +897,11 @@ Tensor* Tensor::hadamardProduct(Tensor &other) {
 
     // check error
     this->handleError(d_result, "Error: Hadamard product failed");
-    
+
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+    other.changeGradientSet(false);
+
     // return new Tensor
     return new Tensor(d_result, this->getShape(), true, hadamardGradient, this, this->getShape(), &other, other.getShape());
 }
@@ -807,6 +953,9 @@ Tensor* Tensor::relu() {
     // check error
     this->handleError(d_tensorValue, "Error: ReLU failed");
 
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+
     return new Tensor(d_tensorValue, this->getShape(), true, reluGradient, this, this->getShape());
 }
 
@@ -845,13 +994,16 @@ static void sigmoidGradient(Tensor* currentTensor) {
 
 Tensor* Tensor::sigmoid() {
     // increment reference count of results args (dependencies)
-    this->addReference();
+    addReference();
 
     // compute sigmoid func store result in newly allocated memory section and return pointer to it
     float* d_sigmoidValue = sigmoidAlloc(this->getValue(), this->getSize());
 
     // check error
     this->handleError(d_sigmoidValue, "Error: Sigmoid failed");
+
+    // disable gradientSet flag
+    this->changeGradientSet(false);
 
     // return new tensor that has holds result of the sigmoid function as a value and corresponding shape and gradient function
     return new Tensor(d_sigmoidValue, this->getShape(), true, sigmoidGradient, this, this->getShape());
@@ -901,6 +1053,9 @@ Tensor* Tensor::tanh() {
 
     // check error
     this->handleError(d_tanhValue, "Error: tanh failed");
+
+    // disable gradientSet flag
+    this->changeGradientSet(false);
 
     // return new tensor that holds the result of the tanh function as a value and corresponding shape and gradient function
     return new Tensor(d_tanhValue, this->getShape(), true, tanhGradient, this, this->getShape());
@@ -957,7 +1112,11 @@ Tensor* Tensor::l2(Tensor &other) {
 
     // check error
     this->handleError(d_result, "Error: An error occured during the computation of the L2 Loss");
-    
+
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+    other.changeGradientSet(false);
+
     // return new Tensor
     return new Tensor(d_result, {1, 1}, true, l2Gradient, this, this->getShape(), &other, other.getShape());
 }
@@ -1123,12 +1282,12 @@ Tensor::~Tensor() {
     }
 
     // free occupied memory
-    if (this->d_value) {
+    if (this->d_value != nullptr) {
         CHECK_CUDA_ERROR(cudaFree(this->d_value));
         this->d_value = nullptr;
     }
 
-    if (this->getTrackGradient() && this->d_gradient) {
+    if (this->getTrackGradient() && this->d_gradient != nullptr) {
         CHECK_CUDA_ERROR(cudaFree(this->d_gradient));
         this->d_gradient = nullptr;
     }

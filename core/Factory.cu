@@ -1,11 +1,41 @@
 #include "Tensor.h"
 
 
-Tensor* createTensorFromInitFunction(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed, void(*initalization_function)(float*, unsigned int, unsigned int, int)) {
+Tensor* createTensorFromInitFunction(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed, cudaError_t(*initalization_function)(float*, unsigned int, unsigned int, int)) {
     Tensor* obj = nullptr;
 
     try {
         obj = new Tensor(_shape, _track_gradient, seed, initalization_function);
+    } catch(std::runtime_error exc) {
+        delete obj;
+        
+        std::cout << "Error when trying to create Tensor: " << std::string(exc.what()) << "\n";
+        exit(EXIT_FAILURE);
+    }
+
+    return obj;
+}
+
+Tensor* createTensorWithXavierInit(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed) {
+    Tensor* obj = nullptr;
+
+    try {
+        obj = new Tensor(_shape, _track_gradient, seed, &xavier);
+    } catch(std::runtime_error exc) {
+        delete obj;
+        
+        std::cout << "Error when trying to create Tensor: " << std::string(exc.what()) << "\n";
+        exit(EXIT_FAILURE);
+    }
+
+    return obj;
+}
+
+Tensor* createTensorWithKaimingHeInit(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed) {
+    Tensor* obj = nullptr;
+
+    try {
+        obj = new Tensor(_shape, _track_gradient, seed, &kaiming_he);
     } catch(std::runtime_error exc) {
         delete obj;
         

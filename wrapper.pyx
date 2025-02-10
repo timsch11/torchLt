@@ -5,13 +5,17 @@ from libcpp.pair cimport pair
 from libcpp.utility cimport pair
 from libcpp cimport bool  # Add bool type
 from libc.string cimport memcpy
-from libc.stdio cimport printf
+
+from libc.stdlib cimport rand
+
 
 np.import_array()  # Initialize NumPy C-API
 
 # Import from Factory
 cdef extern from "Factory.h":
     Tensor* createTensorFromHost(float* _h_value, pair[unsigned int, unsigned int] _shape, bool _track_gradient)
+    Tensor* createTensorWithXavierInit(pair[unsigned int, unsigned int] _shape, bool _track_gradient, int seed)
+    Tensor* createTensorWithKaimingHeInit(pair[unsigned int, unsigned int] _shape, bool _track_gradient, int seed)
     void init()
 
 
@@ -38,6 +42,7 @@ cdef extern from "Tensor.h":
         Tensor* add(Tensor& other)
         Tensor* sub(Tensor& other)
         Tensor* matmul(Tensor& other)
+        Tensor* dot(Tensor &other)
         Tensor* hadamardProduct(Tensor& other)
 
         # Value acceses and slicing
@@ -47,8 +52,13 @@ cdef extern from "Tensor.h":
         Tensor* get(unsigned int fromRow, unsigned int toRow, unsigned int fromCol, unsigned int toCol)
 
         # Copy
-
         Tensor* deepcopy()
+
+        # Deletion
+        int getReferenceCount()
+        void removeReference()
+
+        void sgd(float lr)
         
         # Activation functions
         Tensor* relu()
@@ -70,7 +80,7 @@ cdef extern from "Tensor.h":
 cdef class PyTensor:
     cdef Tensor* _tensor
 
-    def __cinit__(self, object values=[], tuple shape=(), bool _track_gradient=True, bool xavierInit=False, bool kaimingHeInit=False):
+    def __cinit__(self, object values=[], tuple shape=(0, 0), bool _track_gradient=True, bool xavierInit=False, bool kaimingHeInit=False, int seed=0):
         """
         Initialize a Tensor object.
 
@@ -82,18 +92,32 @@ cdef class PyTensor:
         kaimingHeInit (bool): Whether to initialize the tensor using Kaiming He initialization.
         """
 
+        # Create shape pair
+        cdef pair[unsigned int, unsigned int] cpp_shape
+        cpp_shape.first = shape[0]
+        cpp_shape.second = shape[1]
+
+        # Determine seed
+        cdef int randnum = rand() if seed == 0 else seed
+
         if len(values) == 0:
             if xavierInit or kaimingHeInit:
-                if len(shape) == 0:
+                if shape == (0, 0):
                     raise ValueError("Shape must be provided when generating Tensor values using an initialization function.")
+                elif len(values) > 0:
+                    raise ValueError("Tensor can only be initalized with either <values> or <xavierInit> or <kaimingHeInit>. Pick one.")
+                elif xavierInit and kaimingHeInit:
+                    raise ValueError("Tensor cannot be inialized with xavier and kaimingHe init. Pick up to one.")
 
-                # xavier init  TODO
+                if kaimingHeInit:
+                    self._tensor = createTensorWithKaimingHeInit(cpp_shape, _track_gradient, randnum)
 
-                # kaimingHe init TODO
+                else:
+                    self._tensor = createTensorWithXavierInit(cpp_shape, _track_gradient, randnum)
 
             else:
                 # init empty Tensor 
-                # this is necessary to give the py wrapper the actual (cuda c++) Tensor reference easier
+                # this is necessary to later give the py wrapper the actual (cuda c++) Tensor reference easier
                 pass
 
             return
@@ -115,11 +139,6 @@ cdef class PyTensor:
         
         # Get pointer to data
         cdef float* c_array = <float*>np_array.data
-        
-        # Create shape pair
-        cdef pair[unsigned int, unsigned int] cpp_shape
-        cpp_shape.first = shape[0]
-        cpp_shape.second = shape[1]
         
         # Create tensor
         self._tensor = createTensorFromHost(c_array, cpp_shape, _track_gradient)
@@ -169,7 +188,7 @@ cdef class PyTensor:
 
     def __dealloc__(self):
         if self._tensor != NULL:
-            del self._tensor
+            self._tensor.removeReference()
         
     def backward(self):
         self._tensor.backward()
@@ -197,6 +216,9 @@ cdef class PyTensor:
 
     def getLowerGraphSize(self):
         return self._tensor.getLowerGraphSize()
+
+    def getReferenceCount(self):
+        return self._tensor.getReferenceCount()
 
     def getValue(self):
         cdef float* data = self._tensor.getValueCPU()
@@ -320,6 +342,19 @@ cdef class PyTensor:
 
         return result
 
+    def dot(self, PyTensor other):
+        # check for correct type
+        if not isinstance(other, PyTensor):
+            raise TypeError("operation is only defined for other Tensors")
+
+        # create empty Tensor wrapper
+        result = PyTensor()
+
+        # carry out calculation with actual tensor and wrap result with our empty Tensor wrapper
+        result._tensor = self._tensor.dot(other._tensor[0])
+
+        return result
+
     """activation functions"""
 
     def relu(self):
@@ -393,7 +428,6 @@ cdef class PyTensor:
         result = PyTensor()
 
         if isinstance(index, slice):
-            print(index)  # debug
             # row slice
             if index.step is not None and index.step != 1:
                 raise ValueError("Operation does not support step sizes different than 1 (yet)")
@@ -438,15 +472,20 @@ cdef class PyTensor:
 
     """Copy"""
 
-    def deepcopy(this):
+    def deepcopy(self):
         # create empty Tensor wrapper
         result = PyTensor()
 
-        result._tensor = this._tensor.deepcopy()
+        result._tensor = self._tensor.deepcopy()
         return result
 
     def get(self, fromRow: int, toRow: int, fromCol: int, toCol: int):
         return self[fromRow:toRow, fromCol:toCol]
+
+    """Optimization"""
+    
+    def sgd(self, lr: float):
+        self._tensor.sgd(lr)
 
     """init cuda"""
 
