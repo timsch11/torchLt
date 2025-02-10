@@ -99,10 +99,6 @@ The `nn2.py` example demonstrates the library's performance with a large neural 
 - ~100 million parameters
 - GPU-accelerated forward and backward passes
 
-## License
-
-MIT License
-
 ## Acknowledgments
 
 - NVIDIA CUDA Team
