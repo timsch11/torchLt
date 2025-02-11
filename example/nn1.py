@@ -50,7 +50,7 @@ def train(X_tensors, y_tensors, w0, b0, w1, b1, w2, b2, epochs=100, lr=0.01):
             a1 = ((w1 @ a0) + b1).tanh()
 
             # output layer
-            y_pred = ((w2 @ a1) + b2).tanh()
+            y_pred = ((w2 @ a1) + b2)
             
             # Calculate loss
             loss = y_pred.l2(y_tensors[i])
@@ -64,6 +64,8 @@ def train(X_tensors, y_tensors, w0, b0, w1, b1, w2, b2, epochs=100, lr=0.01):
             b0.sgd(lr=lr)
             w1.sgd(lr=lr)
             b1.sgd(lr=lr)
+            w2.sgd(lr=lr)
+            b2.sgd(lr=lr)
             
         if (epoch + 1) % 10 == 0:
             print(f"Epoch {epoch+1}, Average Loss: {total_loss/n_samples:.6f}")
@@ -83,7 +85,7 @@ if __name__ == '__main__':
     # Train model
     print("Starting training...")
     t1 = time.time()
-    train(X_tensors, y_tensors, w0, b0, w1, b1, w2, b2, epochs=100, lr=0.01)
+    train(X_tensors, y_tensors, w0, b0, w1, b1, w2, b2, epochs=200, lr=0.001)
     training_time = time.time() - t1
     print(f"\nTraining completed in {training_time:.2f} seconds")
     

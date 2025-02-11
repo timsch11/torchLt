@@ -302,7 +302,7 @@ Tensor* Tensor::getRows(unsigned int fromRow, unsigned int toRow) {
     unsigned int from = fromRow * this->getShapeY();
 
     // clone values
-    cudaMemDup(this->getValue() + from, d_value_copy, size, false);
+    cudaMemDup(this->getValue() + from, d_value_copy, resultShape.first, resultShape.second, false);
 
     return new Tensor(d_value_copy, resultShape, true);
 }
@@ -365,7 +365,7 @@ Tensor* Tensor::getVal(unsigned int row, unsigned int col) {
     unsigned int position = row * this->getShapeY() + col;
 
     // clone values
-    cudaMemDup(this->getValue() + position, d_value_copy, 1, false);
+    cudaMemDup(this->getValue() + position, d_value_copy, 1, 1, false);
 
     // check for copy errors
     this->handleError(d_value_copy, "Error: Memory copy failed");
@@ -431,7 +431,7 @@ Tensor* Tensor::deepcopy() {
     this->handleError(d_value_copy, "Error: Memory allocation for Tensor deepcopy failed");
 
     // clone values
-    cudaMemDup(this->getValue(), d_value_copy, size, false);
+    cudaMemDup(this->getValue(), d_value_copy, this->getShapeX(), this->getShapeY(), false);
 
     return new Tensor(d_value_copy, this->getShape(), this->getTrackGradient());
 }
@@ -519,7 +519,7 @@ static void additionGradient(Tensor* currentTensor) {
         float* partialGradient = currentTensor->getGradient();
 
         if (arg1->getTrackGradient()) {
-            cudaError_t err = cudaMemDup(partialGradient, arg1->getGradient(), arg1->getSize(), false);
+            cudaError_t err = cudaMemDup(partialGradient, arg1->getGradient(), arg1->getShapeX(), arg1->getShapeY(), false);
             
             // check for errors
             currentTensor->handleError(err, "Error in addition gradient, when duplicating memory cells: exit");
@@ -528,7 +528,7 @@ static void additionGradient(Tensor* currentTensor) {
         }
 
         if (arg2->getTrackGradient()) {
-            cudaError_t err = cudaMemDup(partialGradient, arg2->getGradient(), arg2->getSize(), false);
+            cudaError_t err = cudaMemDup(partialGradient, arg2->getGradient(), arg2->getShapeX(), arg2->getShapeY(), false);
 
             // check for errors
             currentTensor->handleError(err, "Error in addition gradient, when duplicating memory cells: exit");
@@ -584,8 +584,8 @@ Tensor* Tensor::operator+(Tensor &other) {
  *
  * This function calculates the gradient of the current tensor with respect to its arguments
  * (arg1 and arg2) and updates their gradients accordingly. If the gradient for the current
- * tensor is already set, it duplicates this gradient to the arguments' gradients. If the
- * gradient is not set, it initializes the arguments' gradients to a constant value of 1.0.
+ * tensor is already set, it duplicates this gradient to the arguments' gradients (positive for arg1, negative for arg2). If the
+ * gradient is not set, it initializes the arguments' gradients to a constant value of positive and negative 1.0, respectively.
  *
  * @param currentTensor Pointer to the current tensor whose gradient is being computed.
  */
@@ -601,12 +601,12 @@ static void subtractionGradient(Tensor* currentTensor) {
         float* partialGradient = currentTensor->getGradient();
 
         if (arg1->getTrackGradient()) {
-            currentTensor->handleError(cudaMemDup(partialGradient, arg1->getGradient(), arg1->getSize(), false), "Error: Gradient calculation (operation: subtraction) failed");
+            currentTensor->handleError(cudaMemDup(partialGradient, arg1->getGradient(), arg1->getShapeX(), arg1->getShapeY(), false), "Error: Gradient calculation (operation: subtraction) failed");
             arg1->changeGradientSet(true);
         }
 
         if (arg2->getTrackGradient()) {
-            currentTensor->handleError(cudaMemDup(partialGradient, arg2->getGradient(), arg2->getSize(), false), "Error: Gradient calculation (operation: subtraction) failed");
+            currentTensor->handleError(cudaMemDupScaled(partialGradient, arg2->getGradient(), -1.0f, arg2->getSize()), "Error: Gradient calculation (operation: subtraction) failed");
             arg2->changeGradientSet(true);
         }
     } else {
@@ -616,7 +616,7 @@ static void subtractionGradient(Tensor* currentTensor) {
         }
 
         if (arg2->getTrackGradient()) {
-            currentTensor->handleError(constants(arg2->getGradient(), arg2->getSize(), 1.0f), "Error: Gradient calculation (operation: subtraction) failed");
+            currentTensor->handleError(constants(arg2->getGradient(), arg2->getSize(), -1.0f), "Error: Gradient calculation (operation: subtraction) failed");
             arg2->changeGradientSet(true);
         }
     }
@@ -666,12 +666,12 @@ static void matmulGradient(Tensor* currentTensor) {
         // dA = I * B^T = B^T
         // IMPORTANT: THIS CASE IS ONLY DEFINED FOR MATMUL OPERATION THAT RESULT IN A SCALAR (SHAPE=(1, 1)) -> therefore multiplication with I is neglectable (shape would be 1x1)
         if (A->getTrackGradient()) {
-            currentTensor->handleError(cudaMemDup(B->getValue(), A->getGradient(), B->getSize(), true), "Error: Duplicating memory in matmulGradient failed");  // size of B = size of B^T (size=#entries)
+            currentTensor->handleError(cudaMemDup(B->getValue(), A->getGradient(), B->getShapeX(), B->getShapeY(), true), "Error: Duplicating memory in matmulGradient failed");  // size of B = size of B^T (size=#entries)
             A->changeGradientSet(true);
         }
         // dB = A^T * I = A^T
         if (B->getTrackGradient()) {
-            currentTensor->handleError(cudaMemDup(A->getValue(), B->getGradient(), A->getSize(), true), "Error: Duplicating memory in matmulGradient failed");
+            currentTensor->handleError(cudaMemDup(A->getValue(), B->getGradient(), A->getShapeX(), A->getShapeY(), true), "Error: Duplicating memory in matmulGradient failed");
             B->changeGradientSet(true);
         }
 
@@ -797,24 +797,24 @@ static void dotGradient(Tensor* currentTensor) {
 
         // calculate gradient, multiply with partialGradient, if gradient is tracked at all
         if (arg1->getTrackGradient()) {
-            currentTensor->handleError(cudaMemDupScaled(arg2->getValue(), arg1->getGradient(), partialGradient, arg1->getSize(), false), "Error: Gradient calculation (operation: dot product) failed");
+            currentTensor->handleError(cudaMemDupScaled(arg2->getValue(), arg1->getGradient(), partialGradient, arg1->getSize()), "Error: Gradient calculation (operation: dot product) failed");
             arg1->changeGradientSet(true);
         }
 
         if (arg2->getTrackGradient()) {
-            currentTensor->handleError(cudaMemDupScaled(arg1->getValue(), arg2->getGradient(), partialGradient, arg2->getSize(), false), "Error: Gradient calculation (operation: dot product) failed");
+            currentTensor->handleError(cudaMemDupScaled(arg1->getValue(), arg2->getGradient(), partialGradient, arg2->getSize()), "Error: Gradient calculation (operation: dot product) failed");
             arg2->changeGradientSet(true);
         }
 
     } else {
         // no need to apply chain rule since this is the root of the computational graph
         if (arg1->getTrackGradient()) {
-            currentTensor->handleError(cudaMemDup(arg2->getValue(), arg1->getGradient(), arg1->getSize(), false), "Error: Gradient calculation (operation: dot product) failed");
+            currentTensor->handleError(cudaMemDup(arg2->getValue(), arg1->getGradient(), arg1->getShapeX(), arg1->getShapeY(), false), "Error: Gradient calculation (operation: dot product) failed");
             arg1->changeGradientSet(true);
         }
 
         if (arg2->getTrackGradient()) {
-            currentTensor->handleError(cudaMemDup(arg1->getValue(), arg2->getGradient(), arg2->getSize(), false), "Error: Gradient calculation (operation: dot product) failed");
+            currentTensor->handleError(cudaMemDup(arg1->getValue(), arg2->getGradient(), arg2->getShapeX(), arg2->getShapeY(), false), "Error: Gradient calculation (operation: dot product) failed");
             arg2->changeGradientSet(true);
         }
     }
@@ -876,12 +876,12 @@ static void hadamardGradient(Tensor* currentTensor) {
     } else {
         // no need to apply chain rule since this is the root of the computational graph
         if (arg1->getTrackGradient()) {
-            currentTensor->handleError(cudaMemDup(arg2->getValue(), arg1->getGradient(), arg1->getSize(), false), "Error: Gradient calculation (operation: hadamard product) failed");
+            currentTensor->handleError(cudaMemDup(arg2->getValue(), arg1->getGradient(), arg1->getShapeX(), arg1->getShapeY(), false), "Error: Gradient calculation (operation: hadamard product) failed");
             arg1->changeGradientSet(true);
         }
 
         if (arg2->getTrackGradient()) {
-            currentTensor->handleError(cudaMemDup(arg1->getValue(), arg2->getGradient(), arg2->getSize(), false), "Error: Gradient calculation (operation: hadamard product) failed");
+            currentTensor->handleError(cudaMemDup(arg1->getValue(), arg2->getGradient(), arg2->getShapeX(), arg2->getShapeY(), false), "Error: Gradient calculation (operation: hadamard product) failed");
             arg2->changeGradientSet(true);
         }
     }
@@ -1123,9 +1123,53 @@ Tensor* Tensor::l2(Tensor &other) {
 
 // Matrix operations
 
-void Tensor::transpose() {
-    // Swap shape dimensions
-    std::swap(this->shape.first, this->shape.second);
+static void transposeGradient(Tensor* currentTensor) {
+    /* thisGradient = transpose(currentTensorGradient) */
+
+    // cache arg1
+    Tensor* destination = currentTensor->getArg1();
+
+    // check if gradient is tracked
+    if (destination->getTrackGradient()) {
+
+        // compute gradient store in tensor's gradient attribute
+        if (currentTensor->isGradientSet()) {
+
+            // transpose gradient and store in destination
+            currentTensor->handleError(cudaMemDup(currentTensor->getGradient(), destination->getGradient(), currentTensor->getShapeX(), currentTensor->getShapeY(), true), "Error: gradient calculation (operation: transpose) failed");
+        
+        } else {
+            // fill with ones
+            currentTensor->handleError(constants(destination->getGradient(), destination->getSize(), 1.0f), "Error: gradient calculation (operation: transpose) failed");
+        }
+
+        // set gradientSet flag
+        destination->changeGradientSet(true);
+    }
+
+}
+
+Tensor* Tensor::transpose() {
+    // increment reference count of results args (dependencies)
+    this->addReference();
+
+    // cache size
+    unsigned int size = this->getSize();
+
+    // allocate memory
+    float* d_value = reserveMemoryOnDevice(size);
+
+    // check for errors during allocation
+    this->handleError(d_value, "Error: Memory allocsation for Tensor transpose failed");
+
+    // copy mem, transpose during copy process
+    this->handleError(cudaMemDup(this->getValue(), d_value, this->getShapeX(), this->getShapeY(), true), "Error: An error occured during transposed copying");
+
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+
+    // return new Tensor
+    return new Tensor(d_value, {this->getShapeY(), this->getShapeX()}, true, &transposeGradient, this, this->getShape());
 }
 
 // PRINTING

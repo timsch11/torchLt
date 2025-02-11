@@ -127,12 +127,3 @@ cudaError_t scaledSubtraction(float* d_targetMemorySpace, float* d_vector1, unsi
 
     return err;
 }
-
-cudaError_t dotAlloc(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2) {
-    if (vectorSize1 != vectorSize2) {
-        printf("Error: Incompatible shapes for dot product");
-        return cudaErrorInvalidValue;
-    }
-
-    
-}

@@ -599,9 +599,9 @@ class Tensor {
         // Matrix operations
 
         /**
-         * @brief Transposes the Tensor in place
+         * @brief Returns a new Tensor holding the transpose of this Tensor
          */
-        void transpose();
+        Tensor* transpose();
 };
 
 #endif

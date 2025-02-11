@@ -42,7 +42,7 @@ cudaError_t constants(float* d_value, unsigned int size, float constant);
  * @param size Size of array to be duplicated
  * @param transpose Whether destination array should be the transposed version of source
  */
-cudaError_t cudaMemDup(float* d_source, float* d_destination, unsigned int size, bool transpose = false);
+cudaError_t cudaMemDup(float* d_source, float* d_destination, unsigned int rows, unsigned int cols, bool transpose = false);
 
 /**
  * @brief Duplicates an array on device memory
@@ -52,7 +52,7 @@ cudaError_t cudaMemDup(float* d_source, float* d_destination, unsigned int size,
  * @param size Size of array to be duplicated
  * @param transpose Whether destination array should be the transposed version of source
  */
-cudaError_t cudaMemDupScaled(float* d_source, float* d_destination, float* scalar, unsigned int size, bool transpose = false);
+cudaError_t cudaMemDupScaled(float* d_source, float* d_destination, float* scalar, unsigned int size);
 
 /**
  * @brief Duplicates an array on device memory
@@ -62,7 +62,7 @@ cudaError_t cudaMemDupScaled(float* d_source, float* d_destination, float* scala
  * @param size Size of array to be duplicated
  * @param transpose Whether destination array should be the transposed version of source
  */
-cudaError_t cudaMemDupScaled(float* d_source, float* d_destination, float scalar, unsigned int size, bool transpose = false);
+cudaError_t cudaMemDupScaled(float* d_source, float* d_destination, float scalar, unsigned int size);
 
 /**
  * @brief fills tensor of specified size with values sampled from a scaled random normal distribution: N~(0, sqrt(<scalingFactor>))
