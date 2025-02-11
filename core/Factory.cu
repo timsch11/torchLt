@@ -130,6 +130,10 @@ Tensor* createTensorFromHost(float* _h_value, std::pair<unsigned int, unsigned i
     }
 }
 
+void sync() {
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+}
+
 
 void init() {
     int deviceCount;

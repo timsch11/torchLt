@@ -89,4 +89,10 @@ Tensor* createTensorFromHost(float* _h_value, std::pair<unsigned int, unsigned i
  */
 void init();
 
+/**
+ * @brief Waits until weights updates completed.
+ */
+void sync();
+
+
 #endif

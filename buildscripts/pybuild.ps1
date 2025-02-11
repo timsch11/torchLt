@@ -6,10 +6,10 @@ Set-Location $PSScriptRoot
 Set-Location ..
 
 # Make bin directory
-mkdir bin
+mkdir bin -Force
 Set-Location bin 
-mkdir pylib
-mkdir pybuilt
+mkdir pylib -Force
+mkdir pybuilt -Force
 Set-Location ..
 
 # Compile source files to objects

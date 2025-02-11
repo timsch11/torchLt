@@ -353,6 +353,12 @@ class Tensor {
          */
         void backward();
 
+        /**
+         * @brief Do not use with sigmoid or tanh: Performs asynchronous-optimized backpropagation combined with an SGD step
+         * @note Requires sync() to be called afterwards
+         */
+        void asyncbackpropsgd(float lr);
+
         // update value without gradient tracking (i.e. for updating the weights of a neural network)
         // void addNoGrad() # TODO
 
@@ -515,11 +521,18 @@ class Tensor {
         Tensor* sub(Tensor &other);
         
         /**
-         * @brief Performs one iteration of stochstic gradient descent on this tensors values
+         * @brief Performs one iteration of stochstic gradient descent on this tensors values. Synchronized.
          * @param lr Learning rate
          * @note Requires gradient to be set
          */
         void sgd(float lr);
+
+        /**
+         * @brief Performs one iteration of stochstic gradient descent on this tensors values. Asynchronous, see sync().
+         * @param lr Learning rate
+         * @note Requires gradient to be set
+         */
+        void asyncsgd(float lr);
 
         // OPERATOR OVERLOADING
         

@@ -113,12 +113,22 @@ cudaError_t scaletensor(float* d_targetMemorySpace, float* d_tensor, unsigned in
  * @param d_tensor1 Pointer to first input tensor in device memory
  * @param d_tensor2 Pointer to second input tensor in device memory
  * @param shape Pair containing dimensions of the tensors (rows, columns). If columns=0, tensor is treated as 1D
+ * @param async Whether to wait for the update to complete
  * 
  * @return cudaError_t Returns cudaSuccess if operation completed successfully
  */
-cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2,
-                     std::pair<unsigned int, unsigned int> shape);
+cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tensor2, std::pair<unsigned int, unsigned int> shape);
 
-cudaError_t scaledSubtraction(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2, float scalar);
+/** 
+ * @brief Perfrorms d_targetMemorySpace = d_vector1 - (scalar * d_vector2)
+ * @param d_targetMemorySpace Pointer to device memory where result will be stored
+ * @param d_vector1 Pointer to first input tensor in device memory
+ * @param d_vector2 Pointer to second input tensor in device memory
+ * @param vectorSize1 Number of entries in Tensor1
+ * @param vectorSize2 Number of entries in Tensor2
+ * @param scalar Scalar
+ * @param async Whether to wait for the update to complete
+*/
+cudaError_t scaledSubtraction(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2, float scalar, bool async);
 
 #endif

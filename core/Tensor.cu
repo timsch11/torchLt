@@ -472,6 +472,31 @@ void Tensor::backward() {
     }
 }
 
+void Tensor::asyncbackpropsgd(float lr) {
+    // TODO
+    // skip if either gradient tracking is disabled or there are no preceding calculations
+    if (this->getTrackGradient() && !this->isLeaf()) {
+        this->gradFunction(this);
+
+        // recursively calculate gradients of preceding operations and optimize
+        if (this->getArg1() != nullptr) {
+            // SGD step
+            /* asynchronous */
+            this->getArg1()->asyncsgd(lr);
+
+            this->getArg1()->asyncbackpropsgd(lr);
+        }
+
+        if (this->getArg2() != nullptr) {
+            // SGD step
+            /* asynchronous */
+            this->getArg2()->asyncsgd(lr); 
+
+            this->getArg2()->asyncbackpropsgd(lr);
+        }
+    }
+}
+
 bool Tensor::sameShape(Tensor other) const {
     // returns true if tensors are of same shape
     return (this->getShapeX() == other.getShapeX()) && (this->getShapeY() == other.getShapeY());
@@ -489,7 +514,17 @@ void Tensor::sgd(float lr) {
         exit(EXIT_FAILURE);
     }
 
-    this->handleError(scaledSubtraction(this->getValue(), this->getValue(), this->getSize(), this->getGradient(), this->getSize(), lr), "Error: scaledSubtraction failed");
+    this->handleError(scaledSubtraction(this->getValue(), this->getValue(), this->getSize(), this->getGradient(), this->getSize(), lr, false), "Error: scaledSubtraction failed");
+}
+
+void Tensor::asyncsgd(float lr) {
+    if (!this->isGradientSet() || this->getGradient() == nullptr) {
+        printf("Error: Optimization step not possible because gradient is not set");
+        delete this;
+        exit(EXIT_FAILURE);
+    }
+
+    this->handleError(scaledSubtraction(this->getValue(), this->getValue(), this->getSize(), this->getGradient(), this->getSize(), lr, true), "Error: scaledSubtraction failed");
 }
 
 /**

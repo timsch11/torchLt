@@ -16,6 +16,7 @@ cdef extern from "Factory.h":
     Tensor* createTensorFromHost(float* _h_value, pair[unsigned int, unsigned int] _shape, bool _track_gradient)
     Tensor* createTensorWithXavierInit(pair[unsigned int, unsigned int] _shape, bool _track_gradient, int seed)
     Tensor* createTensorWithKaimingHeInit(pair[unsigned int, unsigned int] _shape, bool _track_gradient, int seed)
+    void sync()
     void init()
 
 
@@ -32,6 +33,7 @@ cdef extern from "Tensor.h":
         unsigned int getShapeY() const
 
         void backward()
+        void asyncbackpropsgd(float lr)
 
         bool getTrackGradient() const
         bool isLeaf() const
@@ -58,7 +60,9 @@ cdef extern from "Tensor.h":
         int getReferenceCount()
         void removeReference()
 
+        # Optimization
         void sgd(float lr)
+        void asyncsgd(float lr)
         
         # Activation functions
         Tensor* relu()
@@ -302,6 +306,19 @@ cdef class PyTensor:
         memcpy(np.PyArray_DATA(arr), data, shape_x * shape_y * sizeof(float))
         
         return arr
+
+    """async operations"""
+
+    def asyncbackpropsgd(self, lr: float):
+        self._tensor.asyncbackpropsgd(lr)
+
+    @staticmethod
+    def synchronize():
+        sync()
+
+
+    def asyncsgd(self, lr: float):
+        self._tensor.asyncsgd(lr)
 
     """math operations"""
 

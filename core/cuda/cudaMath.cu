@@ -107,7 +107,7 @@ __global__ void __scaledSubtraction(float* d_targetMemorySpace, float* d_vec1, f
     d_targetMemorySpace[i] = d_vec1[i] - (scalar * d_vec2[i]);
 }
 
-cudaError_t scaledSubtraction(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2, float scalar) {
+cudaError_t scaledSubtraction(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2, float scalar, bool async) {
 
     // check for vector compatibility
     if (vectorSize1 != vectorSize2) {
@@ -119,11 +119,13 @@ cudaError_t scaledSubtraction(float* d_targetMemorySpace, float* d_vector1, unsi
     
     __scaledSubtraction<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_vector1, d_vector2, scalar);
 
+    if (!async) {
+        // wait for completion
+        CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    }
+
     // check for errors
     cudaError_t err = cudaGetLastError();
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return err;
 }

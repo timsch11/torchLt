@@ -49,8 +49,6 @@ class TestPyTensor(unittest.TestCase):
         small_arr = np.random.rand(1, self.size).astype(np.float32)
         big_tensor = PyTensor(self.arr_a, self.arr_a.shape)
         small_tensor = PyTensor(small_arr, small_arr.shape)
-
-        print("here")
         
         with self.assertRaises(ValueError):
             result = big_tensor + small_tensor

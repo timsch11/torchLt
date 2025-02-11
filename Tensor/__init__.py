@@ -276,13 +276,17 @@ class PyTensor:
         """Applies a stochastic gradient descent step to this tensor. Requires the gradient to be set."""
         pass
 
+    def synchronize():
+        """Waits until weight updates completed."""
+        pass
+
     def deepcopy(self) -> 'PyTensor':
         """Returns a deepcopy without gradient data"""
         pass
 
     @staticmethod
     def initCuda():
-        """initalizes the cuda context, called automatically when importing library"""
+        """Initalizes the cuda context, called automatically when importing library."""
         pass
 
 
