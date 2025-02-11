@@ -243,9 +243,9 @@ class PyTensor:
         """
         pass
 
-    def transpose(self):
+    def transpose(self) -> 'PyTensor':
         """
-        Transposes tensor in-place
+        Returns new Tensor holding the transpose of this Tensor
         """
 
     def get(self, fromRow: int, toRow: int, fromCol: int, toCol: int) -> 'PyTensor':
