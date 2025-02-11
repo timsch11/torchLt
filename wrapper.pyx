@@ -69,7 +69,7 @@ cdef extern from "Tensor.h":
         Tensor* l2(Tensor &other)
 
         # Matrix operations
-        void transpose()
+        Tensor* transpose()
         
         # Printing
         void printValue() const
@@ -94,8 +94,28 @@ cdef class PyTensor:
 
         # Create shape pair
         cdef pair[unsigned int, unsigned int] cpp_shape
-        cpp_shape.first = shape[0]
-        cpp_shape.second = shape[1]
+
+        if shape == (0, 0):
+            if not values:
+                # empty wrapper
+                pass
+
+            elif isinstance(values, np.ndarray):
+                cpp_shape.first = values.shape[0]
+                cpp_shape.second = values.shape[1]
+
+            else:
+                raise ValueError("Shapes can only be implicitly given through numpy arrays, provide a numpy array as value or a shape")
+
+        elif len(shape) != 2:
+            raise ValueError("Shapes must be two dimensional")
+
+        elif shape[0] <= 0 or shape[1] <= 0:
+            raise ValueError("Shapes must be positive non-zero integers")
+
+        else:
+            cpp_shape.first = shape[0]
+            cpp_shape.second = shape[1]
 
         # Determine seed
         cdef int randnum = rand() if seed == 0 else seed
@@ -131,7 +151,12 @@ cdef class PyTensor:
         cdef np.ndarray[np.float32_t, ndim=1] np_array
 
         if isinstance(values, np.ndarray):
+            if shape and len(shape) == 2:
+                if ((values.shape[0]) != shape[0]) or ((values.shape[1]) != shape[1]):
+                    raise ValueError("Shape of numpy array passed as value does not match provided shape. Provide the correct shape or no shape to implicitly pass the shape.")
+
             np_array = np.ascontiguousarray(values.flatten(), dtype=np.float32)
+    
         elif type(values) in {list, tuple}:
             np_array = np.ascontiguousarray(np.array(values, dtype=np.float32).flatten())
         else:
@@ -189,8 +214,14 @@ cdef class PyTensor:
     def __dealloc__(self):
         if self._tensor != NULL:
             self._tensor.removeReference()
+
+    def sameShape(self, other: PyTensor):
+        return (self._tensor.getShapeX() == other._tensor.getShapeX()) and (self._tensor.getShapeY() == other._tensor.getShapeY())
         
     def backward(self):
+        if self._tensor.getShapeX() != 1 or self._tensor.getShapeY() != 1:
+            raise RuntimeError("Backpropagation must start from a scalar value")
+
         self._tensor.backward()
 
     def getShapeX(self):
@@ -226,7 +257,7 @@ cdef class PyTensor:
         cdef unsigned int shape_y = self._tensor.getShapeY()
 
         # Create numpy array from the data
-        cdef np.npy_intp dims[1]
+        cdef np.npy_intp[1] dims
         dims[0] = shape_x * shape_y
         
         # Create numpy array and copy data
@@ -239,24 +270,8 @@ cdef class PyTensor:
         # free data
         #free(data)
 
-        return arr.reshape(-1, shape_y)
-        
-        # Create numpy array from the data
-        cdef np.npy_intp dims[2]
-        dims[0] = shape_x  # First dimension: rows (y)
-        dims[1] = shape_y  # Second dimension: columns (x)
-        
-        # Create numpy array and copy data
-        cdef np.ndarray arr
-        arr = np.PyArray_SimpleNew(2, dims, np.NPY_FLOAT32)
-            
-        # Copy data into numpy array
-        memcpy(np.PyArray_DATA(arr), data, shape_x * shape_y * sizeof(float))
+        return arr.reshape(-1, shape_y) # -1, shape_y
 
-        # free data
-        #free(data)
-
-        return arr
 
     def getGradient(self):
         if not self._tensor.getTrackGradient():
@@ -295,6 +310,9 @@ cdef class PyTensor:
         if not isinstance(other, PyTensor):
             raise TypeError("operation is only defined for other Tensors")
 
+        if not self.sameShape(other):
+            raise ValueError("Incompatible shapes: Shapes must match for addition to work")
+
         # create empty Tensor wrapper
         result = PyTensor()
 
@@ -307,6 +325,9 @@ cdef class PyTensor:
         # check for correct type
         if not isinstance(other, PyTensor):
             raise TypeError("operation is only defined for other Tensors")
+
+        if not self.sameShape(other):
+            raise ValueError("Incompatible shapes: Shapes must match for subtraction to work")
 
         # create empty Tensor wrapper
         result = PyTensor()
@@ -321,6 +342,9 @@ cdef class PyTensor:
         if not isinstance(other, PyTensor):
             raise TypeError("operation is only defined for other Tensors")
 
+        if not self.sameShape(other):
+            raise ValueError("Incompatible shapes: Shapes must match for hadamard product to work")
+
         # create empty Tensor wrapper
         result = PyTensor()
 
@@ -334,6 +358,9 @@ cdef class PyTensor:
         if not isinstance(other, PyTensor):
             raise TypeError("operation is only defined for other Tensors")
 
+        #if self._tensor.getShapeY() != other._tensor.getShapeX():
+        #    raise ValueError("Incompatible shapes: #col of A must match #row of B")
+
         # create empty Tensor wrapper
         result = PyTensor()
 
@@ -346,6 +373,12 @@ cdef class PyTensor:
         # check for correct type
         if not isinstance(other, PyTensor):
             raise TypeError("operation is only defined for other Tensors")
+
+        if not self.sameShape(other):
+            raise ValueError("Incompatible shapes: Shapes must match for dot product to work")
+        
+        if self._tensor.getShapeY() != 1:
+            raise ValueError("Incompatible shapes: Tensors need to be column vectors to perform dot product")
 
         # create empty Tensor wrapper
         result = PyTensor()
@@ -394,6 +427,12 @@ cdef class PyTensor:
         if not isinstance(other, PyTensor):
             raise TypeError("operation is only defined for other Tensors")
 
+        if not self.sameShape(other):
+            raise ValueError("Incompatible shapes: Shapes must match for l2 loss")
+        
+        if self._tensor.getShapeY() != 1:
+            raise ValueError("Incompatible shapes: Tensors need to be column vectors to calculate l2 loss")
+
         # create empty Tensor wrapper
         result = PyTensor()
 
@@ -405,7 +444,12 @@ cdef class PyTensor:
     """matrix operations"""
 
     def transpose(self):
-        self._tensor.transpose()
+        # create empty Tensor wrapper
+        result = PyTensor()
+        
+        result._tensor = self._tensor.transpose()
+
+        return result
 
     """operator overloading"""
     
@@ -420,6 +464,9 @@ cdef class PyTensor:
         
     def __matmul__(self, PyTensor other):
         return self.matmul(other)
+
+    def __truediv__(self, other):
+        raise RuntimeError("Division not defined for Tensors")
 
     # values accesses and slicing
 
