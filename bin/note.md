@@ -1,0 +1,1 @@
+Files were compiled on Windows 10 x64 so you will likely have to build from source. To do this follow the instructions in readme and use one of the buildscripts. On linux the scripts require minor changes, namely to convert the script to bash and change the dynamic library from .dll to .so.

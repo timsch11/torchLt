@@ -1,84 +1,110 @@
-# cuTensor
+# cuTensor - A CUDA-Accelerated Neural Network Library
 
-cuTensor is a CUDA-accelerated tensor library designed for high-performance numerical computations. It provides a Python interface for tensor operations, leveraging the power of NVIDIA GPUs to perform efficient mathematical operations and automatic differentiation.
+cuTensor is a high-performance neural network library that leverages CUDA for GPU acceleration. It provides a Python interface while maintaining the computational efficiency of CUDA C++.
 
-# Note: still in development
+## Overview
 
-Even though the core library is largely done, some operations (namely matmul) are still buggy which I will address in the future
+The library implements a tensor-based computational framework supporting automatic differentiation and various neural network operations. It's designed for both educational purposes and performance demonstrations of GPU-accelerated machine learning.
 
-Further features I want to add in the future:
-- loss functions
+## Project Structure
+
+### Core CUDA Components (`/core/`)
+- `Tensor.h/cu`: Core tensor implementation with GPU support
+- `Factory.h/cu`: Factory methods for tensor creation
+- `cuda/`: CUDA kernel implementations
+    - `cudaNN.cuh/cu`: Neural network operations
+    - `cudaMath.cuh/cu`: Mathematical operations
+    - `cudaMem.cuh/cu`: Memory management
+    - `cudaDif.cuh/cu`: Automatic differentiation 
+
+### Python Interface
+- `wrapper.pyx`: Cython wrapper bridging C++ and Python
+- `__init__.py`: Python API interface
+- `setup.py`: Build configuration for Python extension
+
+### Examples (`/example/`)
+- `nn1.py`: Simple regression example
+- `nn2.py`: Performance benchmark example 
 
 ## Features
 
-- **High Performance**: Utilizes CUDA for GPU acceleration.
-- **Automatic Differentiation**: Supports backpropagation for gradient computation.
-- **Accessible from Python**: Cython bindings make Tensor accessible from python
-- **Flexible Initialization**: Supports Xavier and Kaiming He initialization.
-- **Comprehensive Tensor Operations**: Includes basic arithmetic, activation functions, and more.
+- GPU-accelerated tensor operations
+- Automatic differentiation
+- Common neural network layers and activations
+- Python-friendly API
+- Xavier and Kaiming He weight initialization
+- Multiple optimization algorithms
 
 ## Installation
 
 ### Prerequisites
-
-- NVIDIA CUDA Toolkit
-- Python 3.x
+- CUDA Toolkit (11.0+)
+- Python 3.7+
+- Visual Studio (Windows) or GCC (Linux)
 - Cython
-- NumPy
+- Numpy
 
 ### Building
 
-Use this PowerShell build script for the python wrapper:
-
+1. Set CUDA environment:
 ```powershell
-./pybuilt.ps1
+$env:CUDA_PATH = "path/to/cuda"  # Windows
 ```
 
-*Use this if you want to only use the python wrapper*
-
-This will:
-1. Create necessary directories
-2. Compile all CUDA source files
-3. Create static and dynamic libraries
-4. Setup python wrapper
-
-Use this PowerShell build script to build the c++ library:
-
+Build C++ library (if you want to use the c++ library):
 ```powershell
-./cppbuilt.ps1
+.\buildscripts\cppbuild.ps1  # Windows
 ```
 
-*Use this if you want to only use the c++ library*
-
-This will:
-1. Create necessary directories
-2. Compile all CUDA source files
-3. Create static library
+Build Python extension (if you want to use the python API):
+```powershell
+.\buildscripts\pybuild.ps1   # Windows
+```
 
 ## Usage Example
 
-*Take a look at example.cu or example.py*
+```python
+from Tensor import PyTensor
 
-## How to compile your c++ files
+
+inp = PyTensor([1.2, 3.3], (2, 1))
+
+w0 = PyTensor(shape=(32, 2), _track_gradient=True, kaimingHeInit=True)
+b0 = PyTensor([[0] * 32], (32, 1), _track_gradient=True)
+    
+w1 = PyTensor(shape=(4, 32), _track_gradient=True, kaimingHeInit=True)
+b1 = PyTensor([[0] * 4], (4, 1), _track_gradient=True)
+
+labels = PyTensor([1, 2, 3, 4], (4, 1))
+
+# example neural network layers
+a0 = ((w0 @ inp) + b0).tanh()
+a1 = ((w1 @ a0) + b1).relu()
+
+loss = a1.l2(labels)
+
+loss.backward()
+
+w0.sgd(lr=0.01)
+b0.sgd(lr=0.01)
+w1.sgd(lr=0.01)
+b1.sgd(lr=0.01)
+
 
 ```
-nvcc example.cu -o example.exe -lTensor -lcublas
-```
-(Take care of you include path or store Tensor.lib in the same directory as your file)
 
-## Project Structure
+## Performance Benchmarks
 
-**Cuda**
+The `nn2.py` example demonstrates the library's performance with a large neural network:
+- ~100 million parameters
+- GPU-accelerated forward and backward passes
 
-- `core/`: Core implementation files
-    - `Tensor.h/cu`: Main tensor class implementation
-    - `Factory.h/cu`: Tensor creation utilities
-    - `cuda/`: CUDA kernel implementations
-        - `cudaMath.cuh/cu`: Mathematical operations
-        - `cudaMem.cuh/cu`: Memory management
-        - `cudaDif.cuh/cu`: Gradient computation
-        - `cudaNN.cuh/cu`: Neural network operations
-        - `util.cuh/cu`: Utility functions
+## Developed on:
+- Windows 10
+- AMD Ryzen 5 3600 x64
+- NVIDIA RTX 2070 Super with CUDA 12.6
 
-**Python**
-- `Tensor`: Interface for using the Tensor API
+## Acknowledgments
+
+- NVIDIA CUDA Team
+- Python and Cython communities
