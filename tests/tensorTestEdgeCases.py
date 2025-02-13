@@ -10,7 +10,7 @@ import os
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, parent_dir)
 
-from Tensor import PyTensor
+from torchLt import PyTensor
 
 
 class TestPyTensor(unittest.TestCase):

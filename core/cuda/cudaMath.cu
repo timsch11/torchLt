@@ -129,3 +129,174 @@ cudaError_t scaledSubtraction(float* d_targetMemorySpace, float* d_vector1, unsi
 
     return err;
 }
+
+void checkCublasStatus(cublasStatus_t status) {
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        std::cerr << "cuBLAS Error: " << status << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
+
+cublasStatus_t gemm(cublasLtHandle_t* handle, const float* d_A, const float* d_B, float* d_C, int m, int n, int k, cublasOperation_t opA, cublasOperation_t opB) {
+
+    // Create matrix descriptors
+    cublasLtMatrixLayout_t matA, matB, matC;
+
+    cublasLtOrder_t row_major_format = CUBLASLT_ORDER_ROW;
+    
+    bool transA = opA == CUBLAS_OP_T;
+    bool transB = opB == CUBLAS_OP_T;
+
+    // For A matrix
+    checkCublasStatus(cublasLtMatrixLayoutCreate(
+        &matA, CUDA_R_32F, transA ? k : m, transA ? m : k, transA ? m : k)); // swapped ld = cols,rows,rows
+
+    checkCublasStatus( cublasLtMatrixLayoutSetAttribute(
+        matA, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_format, sizeof( row_major_format ) ) );
+
+    // For B matrix
+    checkCublasStatus(cublasLtMatrixLayoutCreate(
+        &matB, CUDA_R_32F, transB ? n : k, transB ? k : n, transB ? k : n)); // swapped ld = cols,rows,rows
+    
+    checkCublasStatus( cublasLtMatrixLayoutSetAttribute(
+        matB, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_format, sizeof( row_major_format ) ) );
+
+    // For C matrix
+    checkCublasStatus(cublasLtMatrixLayoutCreate(
+        &matC, CUDA_R_32F, m, n, n)); // swapped ld
+
+    checkCublasStatus( cublasLtMatrixLayoutSetAttribute(
+        matC, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_format, sizeof( row_major_format ) ) );
+
+    // Create operation descriptor
+    cublasLtMatmulDesc_t operationDesc;
+    checkCublasStatus(cublasLtMatmulDescCreate(&operationDesc, CUBLAS_COMPUTE_32F, CUDA_R_32F));
+
+    // Set transpose operations
+    checkCublasStatus(cublasLtMatmulDescSetAttribute(
+        operationDesc, CUBLASLT_MATMUL_DESC_TRANSA,
+        &opA, sizeof(opA)));
+    checkCublasStatus(cublasLtMatmulDescSetAttribute(
+        operationDesc, CUBLASLT_MATMUL_DESC_TRANSB,
+        &opB, sizeof(opB)));
+
+    
+    //std::cout << "1";
+
+    // Scale factors
+    float alpha = 1.0f;
+    float beta = 0.0f;
+
+    // Perform matrix multiplication
+    checkCublasStatus(cublasLtMatmul(
+        *handle,
+        operationDesc,
+        &alpha,
+        d_A,
+        matA,
+        d_B,
+        matB,
+        &beta,
+        d_C,
+        matC,
+        d_C,
+        matC,
+        nullptr,
+        nullptr,
+        0,
+        0));
+
+    cublasLtMatrixLayoutDestroy(matA);
+    cublasLtMatrixLayoutDestroy(matB);
+    cublasLtMatrixLayoutDestroy(matC);
+    cublasLtMatmulDescDestroy(operationDesc);
+
+    return CUBLAS_STATUS_SUCCESS;
+}
+
+float* gemmA(cublasLtHandle_t* handle, const float* d_A, const float* d_B, int m, int n, int k, cublasOperation_t opA, cublasOperation_t opB) {
+
+    // Allocate device memory
+    float* d_C = reserveMemoryOnDevice(m * n);
+
+    // error check
+    if (d_C == nullptr) {
+        printf("Error: Memory allocation for gemm failed");
+        cudaFree(d_C);
+        exit(EXIT_FAILURE);
+    }
+
+    // Create matrix descriptors
+    cublasLtMatrixLayout_t matA, matB, matC;
+
+    cublasLtOrder_t row_major_format = CUBLASLT_ORDER_ROW;
+
+    bool transA = opA == CUBLAS_OP_T;
+    bool transB = opB == CUBLAS_OP_T;
+
+    // For A matrix
+    checkCublasStatus(cublasLtMatrixLayoutCreate(
+        &matA, CUDA_R_32F, transA ? k : m, transA ? m : k, transA ? m : k)); // swapped ld = cols,rows,rows
+
+    checkCublasStatus( cublasLtMatrixLayoutSetAttribute(
+        matA, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_format, sizeof( row_major_format ) ) );
+
+    // For B matrix
+    checkCublasStatus(cublasLtMatrixLayoutCreate(
+        &matB, CUDA_R_32F, transB ? n : k, transB ? k : n, transB ? k : n)); // swapped ld = cols,rows,rows
+    
+    checkCublasStatus( cublasLtMatrixLayoutSetAttribute(
+        matB, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_format, sizeof( row_major_format ) ) );
+
+    // For C matrix
+    checkCublasStatus(cublasLtMatrixLayoutCreate(
+        &matC, CUDA_R_32F, m, n, n)); // swapped ld
+
+    checkCublasStatus( cublasLtMatrixLayoutSetAttribute(
+        matC, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_format, sizeof(row_major_format)));
+
+
+    // Create operation descriptor
+    cublasLtMatmulDesc_t operationDesc;
+    checkCublasStatus(cublasLtMatmulDescCreate(&operationDesc, CUBLAS_COMPUTE_32F, CUDA_R_32F));
+
+    // Set transpose operations
+    checkCublasStatus(cublasLtMatmulDescSetAttribute(
+        operationDesc, CUBLASLT_MATMUL_DESC_TRANSA,
+        &opA, sizeof(opA)));
+    checkCublasStatus(cublasLtMatmulDescSetAttribute(
+        operationDesc, CUBLASLT_MATMUL_DESC_TRANSB,
+        &opB, sizeof(opB)));
+
+    // Scale factors
+    float alpha = 1.0f;
+    float beta = 0.0f;
+
+    // Perform matrix multiplication
+    checkCublasStatus(cublasLtMatmul(
+        *handle,
+        operationDesc,
+        &alpha,
+        d_A,
+        matA,
+        d_B,
+        matB,
+        &beta,
+        d_C,
+        matC,
+        d_C,
+        matC,
+        nullptr,
+        nullptr,
+        0,
+        0));
+
+    // wait for completion
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    // Cleanup
+    cublasLtMatrixLayoutDestroy(matC);
+    cublasLtMatmulDescDestroy(operationDesc);
+
+    return d_C;
+}

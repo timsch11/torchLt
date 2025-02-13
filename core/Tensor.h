@@ -5,6 +5,7 @@
 #include <cuda_runtime.h>
 
 #include "cublas_v2.h"
+#include <cublasLt.h>
 
 #include <string>
 #include <utility>
@@ -58,6 +59,7 @@ class Tensor {
 
         Tensor* d_funcArg1;  
         Tensor* d_funcArg2;
+        Tensor* d_funcArg3; // if set: 1. weight 2. input 3. bias
 
         // streams for synchronized/concurrent execution
 
@@ -76,6 +78,7 @@ class Tensor {
 
         std::pair<unsigned int, unsigned int> shapeFuncArg1;
         std::pair<unsigned int, unsigned int> shapeFuncArg2;
+        std::pair<unsigned int, unsigned int> shapeFuncArg3;
 
         // gradient function of operation this node resulted from
 
@@ -116,6 +119,21 @@ class Tensor {
          */
         Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1, Tensor* _d_funcArg2, std::pair<unsigned int, unsigned int> _shapeFuncArg2);
         
+        /**
+         * @brief Constructor for creating a Tensor as result of a forward pass
+         * @param _d_value Pointer to device memory containing tensor values 
+         * @param _shape Shape of the tensor as (rows, columns) pair
+         * @param _track_gradient Whether to track gradients for this tensor
+         * @param _gradFunction Function pointer to gradient computation function
+         * @param _d_funcArg1 Pointer to first input tensor (=weight)
+         * @param _shapeFuncArg1 Shape of first input tensor
+         * @param _d_funcArg2 Pointer to second input tensor (=input)
+         * @param _shapeFuncArg2 Shape of second input tensor
+         * @param _d_funcArg3 Pointer to third input tensor (=bias)
+         * @param _shapeFuncArg3 Shape of third input tensor
+         */
+        Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1, Tensor* _d_funcArg2, std::pair<unsigned int, unsigned int> _shapeFuncArg2, Tensor* _d_funcArg3, std::pair<unsigned int, unsigned int> _shapeFuncArg3);
+
         /**
          * @brief Constructor for creating a leaf Tensor
          * @param _d_value Pointer to device memory containing tensor values
@@ -282,6 +300,12 @@ class Tensor {
         Tensor* getArg2() const;
 
         /**
+         * @brief Get pointer to third argument tensor used in operation
+         * @return Tensor* - pointer to third argument tensor
+         */
+        Tensor* getArg3() const;
+
+        /**
          * @brief Get shape of first argument tensor used in operation
          * @return std::pair<unsigned int, unsigned int> - (rows, columns) of first argument
          */
@@ -292,6 +316,12 @@ class Tensor {
          * @return std::pair<unsigned int, unsigned int> - (rows, columns) of second argument
          */
         std::pair<unsigned int, unsigned int> getShapeArg2() const;
+
+        /**
+         * @brief Get shape of third argument tensor used in operation
+         * @return std::pair<unsigned int, unsigned int> - (rows, columns) of third argument
+         */
+        std::pair<unsigned int, unsigned int> getShapeArg3() const;
 
         /**
          * @brief Get pointer to CUDA stream associated with this tensor's computational graph
@@ -519,6 +549,8 @@ class Tensor {
          * @return Pointer to new tensor containing the element-wise difference
          */
         Tensor* sub(Tensor &other);
+
+        /* Optimization */
         
         /**
          * @brief Performs one iteration of stochstic gradient descent on this tensors values. Synchronized.
@@ -533,6 +565,13 @@ class Tensor {
          * @note Requires gradient to be set
          */
         void asyncsgd(float lr);
+
+        /* Neural Network */
+
+        /**
+         * @brief Performs a standard forward pass. 
+         */
+        Tensor* sfpass(Tensor &weight, Tensor &bias);
 
         // OPERATOR OVERLOADING
         
@@ -601,6 +640,12 @@ class Tensor {
          */
         Tensor* tanh();
 
+        /**
+         * @brief Applies softmax activation function to vector
+         * @return Pointer to new tensor with softmax applied
+         */
+        Tensor* softmax();
+
         // LOSS FUNCTIONS
 
         /**
@@ -608,6 +653,12 @@ class Tensor {
          * @return Pointer to new tensor with l2 loss of <this> and <other>
          */
         Tensor* l2(Tensor &other);
+
+        /**
+         * @brief Applies softmax and calculates categorical cross entropy loss between to distributions
+         * @return Pointer to new tensor with l2 loss of <this> and <other>
+         */
+        Tensor* categoricalCrossEntropy(Tensor &other);
 
         // Matrix operations
 

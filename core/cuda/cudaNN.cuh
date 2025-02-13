@@ -133,12 +133,10 @@ cudaError_t kaiming_he(float* d_targetMemorySpace, unsigned int in_features, uns
  */
 cudaError_t xavier(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed);
 
-
-// updates the given weight matrix (passed as pointer to float array), performs error checking 
-void updateWeightMatrix(float* d_weightMatrixToUpdate, float* d_gradient, unsigned int in_features, unsigned int out_features, float learningRate);
-
-// updates the given bias vector (passed as pointer to float array), performs error checking 
-void updateBiasVector(float* d_biasVectorToUpdate, float* d_gradient, unsigned int out_features, float learningRate);
+/**
+ * @brief Performs a forward pass and returns a pointer to the result
+ */
+float* forwardPass(cublasLtHandle_t* handle, const float* d_weight, const float* d_input, const float* d_bias, int m, int n, int k, cublasOperation_t opA, cublasOperation_t opB);
 
 
 /**

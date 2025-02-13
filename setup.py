@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).parent
 
 ext = Extension('cuTensorCpy',
                 sources=['wrapper.pyx'],
-                libraries=['Tensor', 'cudart', 'cublas'],
+                libraries=['Tensor', 'cudart', 'cublas', 'cublasLt'],
                 language='c++',
                 include_dirs=[
                     os.path.join(CUDA_HOME, 'include'),

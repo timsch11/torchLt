@@ -2,6 +2,7 @@
 
 
 cublasHandle_t* handle = nullptr;
+cublasLtHandle_t* handleLt = nullptr;
 unsigned int activeTensors = 0;
 
 /**
@@ -26,8 +27,29 @@ cublasStatus_t init_cuBlas() {
             handle = nullptr;
 
             std::cout << "cuBLAS initialization failed: " << cublasGetStatusString(createStatus);
+            return createStatus;
         }
-        return createStatus;
+
+        if (handleLt == nullptr) {
+
+            // allocate memory for handle object
+            handleLt = new cublasLtHandle_t;
+
+            // create handle, store status type
+            cublasStatus_t ltcreateStatus = cublasLtCreate(handleLt);
+
+            // error handling
+            if (ltcreateStatus != CUBLAS_STATUS_SUCCESS) {
+
+                // free allocated memory and reset pointer
+                delete handleLt;
+                handleLt = nullptr;
+
+                std::cout << "cuBLAS initialization failed: " << cublasGetStatusString(ltcreateStatus);
+
+                return ltcreateStatus;
+            }
+        }
     }
     return CUBLAS_STATUS_SUCCESS;
 }
@@ -47,6 +69,12 @@ void destroy_cuBlas() {
         // reset pointer to cuBlas handle
         delete handle;
         handle = nullptr;
+
+        // do the same for the cublasLt handle
+        cublasLtDestroy(*handleLt);
+
+        delete handleLt;
+        handleLt = nullptr;
     }
 }
 
@@ -59,7 +87,7 @@ Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradien
     this->handleError(this->d_value, "Error: Memory allocation failed");
 
     // fill with values from initalization function
-    this->handleError(initalization_function(this->d_value, _shape.first, _shape.second, seed), "Error: Tensor initalization with values from custom function failed");
+    this->handleError(initalization_function(this->d_value, _shape.second, _shape.first, seed), "Error: Tensor initalization with values from custom function failed");
 }
 
 // initalize leaf
@@ -94,10 +122,7 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
     this-> gradFunction = nullptr;
     this->d_funcArg1 = nullptr;
     this->d_funcArg2 = nullptr;
-
-    // cudaStream_t graphStream
-    // cudaStream_t nodeStream = 
-
+    
     if (_track_gradient) {
         this->d_gradient = reserveMemoryOnDevice(_shape.first * _shape.second);
 
@@ -147,6 +172,14 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
 
     // update this node
     this->graphStream = unifiedGraphStream;
+}
+
+// initalize result of triple tensor operation (=sfpass)
+Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1, Tensor* _d_funcArg2, std::pair<unsigned int, unsigned int> _shapeFuncArg2, Tensor* _d_funcArg3, std::pair<unsigned int, unsigned int> _shapeFuncArg3)
+: Tensor(_d_value, _shape, _track_gradient, _gradFunction, _d_funcArg1, _shapeFuncArg1, _d_funcArg2, _shapeFuncArg2) {
+    this->d_funcArg3 = _d_funcArg3;
+    this->shapeFuncArg3 = _shapeFuncArg3;
+    this->lowerGraphSize += _d_funcArg2->getLowerGraphSize();
 }
 
 // basic functions
@@ -226,12 +259,20 @@ Tensor* Tensor::getArg2() const {
     return this->d_funcArg2;
 }
 
+Tensor* Tensor::getArg3() const {
+    return this->d_funcArg3;
+}
+
 std::pair<unsigned int, unsigned int> Tensor::getShapeArg1() const {
     return this->shapeFuncArg1;
 }
 
 std::pair<unsigned int, unsigned int> Tensor::getShapeArg2() const {
     return this->shapeFuncArg2;
+}
+
+std::pair<unsigned int, unsigned int> Tensor::getShapeArg3() const {
+    return this->shapeFuncArg3;
 }
 
 cudaStream_t* Tensor::getGraphStream() const {
@@ -714,16 +755,27 @@ static void matmulGradient(Tensor* currentTensor) {
         // gradOut_currTensor is gradient of current tensor
         gradOut_currTensor = currentTensor->getGradient();
 
-        // cache shapes of gradOut_currTensor
-        int cx = currentTensor->getShapeX();
-        int cy = currentTensor->getShapeY();
+        // cache shapes of gradOut_currTensor and original matrices
+        int m = A->getShapeX();    // rows of A
+        int k = A->getShapeY();    // cols of A (= rows of B)
+        int n = B->getShapeY();    // cols of B
 
         // dA = gradOut_currTensor * B^T
-        currentTensor->handleError(matmul__ABT(cx, cy, B->getShapeX(), B->getShapeY(), gradOut_currTensor, B->getValue(), A->getGradient()), "Error: Gradient calculation of arg1 of matmul failed");
+        currentTensor->handleError(gemm(handleLt, gradOut_currTensor, B->getValue(), A->getGradient(), 
+            m,      // rows of result (dA)
+            k,      // cols of result (dA)
+            n,      // common dimension
+            CUBLAS_OP_N, CUBLAS_OP_T), 
+            "Error: Gradient calculation of arg1 of matmul failed");
         A->changeGradientSet(true);
 
         // dB = A^T * gradOut_currTensor
-        currentTensor->handleError(matmul__ATB(handle, A->getShapeX(), A->getShapeY(), cx, cy, A->getValue(), gradOut_currTensor, B->getGradient()), "Error: Gradient calculation of arg2 of matmul failed");
+        currentTensor->handleError(gemm(handleLt, A->getValue(), gradOut_currTensor, B->getGradient(), 
+            k,      // rows of result (dB)
+            n,      // cols of result (dB)
+            m,      // common dimension
+            CUBLAS_OP_T, CUBLAS_OP_N), 
+            "Error: Gradient calculation of arg2 of matmul failed");
         B->changeGradientSet(true);    
     }
 }
@@ -738,8 +790,9 @@ Tensor* Tensor::matmul(Tensor &other) {
         this->addReference();
         other.addReference();
 
-        float* d_resultMatrix = matmulAlloc(handle, this->getShapeX(), this->getShapeY(), other.getShapeX(), other.getShapeY(), this->getValue(), other.getValue());
-            
+        // float* d_resultMatrix = matmulAlloc(handle, this->getShapeX(), this->getShapeY(), other.getShapeX(), other.getShapeY(), this->getValue(), other.getValue());
+        float* d_resultMatrix = gemmA(handleLt, this->getValue(), other.getValue(), (int) this->getShapeX(), (int) other.getShapeY(), (int) this->getShapeY(), CUBLAS_OP_N, CUBLAS_OP_N);
+
         // check error
         this->handleError(d_resultMatrix, "Error: Matrix multiplication failed");
 
@@ -1154,6 +1207,100 @@ Tensor* Tensor::l2(Tensor &other) {
 
     // return new Tensor
     return new Tensor(d_result, {1, 1}, true, l2Gradient, this, this->getShape(), &other, other.getShape());
+}
+
+// Neural Network operations
+
+static void sfpassGradient(Tensor* currentTensor) {
+    // cache tensors
+    Tensor* weight = currentTensor->getArg1();
+    Tensor* input = currentTensor->getArg2();
+    Tensor* bias = currentTensor->getArg3();
+
+    // gradOut_currTensor = gradient of output of this computational graph wrt to this Tensor
+    float* gradOut_currTensor = nullptr;
+
+    if (!currentTensor->isGradientSet()) {
+        // IMPORTANT: THIS CASE IS ONLY DEFINED FOR MATMUL OPERATION THAT RESULT IN A SCALAR (SHAPE=(1, 1))
+        if (currentTensor->getShapeX() != 1 || currentTensor->getShapeY() != 1) {
+            printf("Error: Backward cannot be called on a non-scalar result of a matrix multiplication");
+            delete currentTensor;
+        }
+
+        if (bias->getTrackGradient()) {
+            currentTensor->handleError(constants(bias->getGradient(), bias->getSize(), 1.0f), "Error: Duplicating memory in sfpass failed");
+            bias->changeGradientSet(true);
+        }
+
+        /* this tensors gradient is not set => we started to differentiate from here so no need to apply the chain rule (saves a multiplication with Identity matrix) */
+        // dA = I * B^T = B^T
+        // IMPORTANT: THIS CASE IS ONLY DEFINED FOR MATMUL OPERATION THAT RESULT IN A SCALAR (SHAPE=(1, 1)) -> therefore multiplication with I is neglectable (shape would be 1x1)
+        if (weight->getTrackGradient()) {
+            currentTensor->handleError(cudaMemDup(input->getValue(), weight->getGradient(), input->getShapeX(), input->getShapeY(), true), "Error: Duplicating memory in sfpass failed");  // size of B = size of B^T (size=#entries)
+            weight->changeGradientSet(true);
+        }
+        // dB = A^T * I = A^T
+        if (input->getTrackGradient()) {
+            currentTensor->handleError(cudaMemDup(weight->getValue(), input->getGradient(), weight->getShapeX(), weight->getShapeY(), true), "Error: Duplicating memory in sfpass failed");
+            input->changeGradientSet(true);
+        }
+
+    } else {
+        // gradOut_currTensor is gradient of current tensor
+        gradOut_currTensor = currentTensor->getGradient();
+
+        // cache shapes of gradOut_currTensor and original matrices
+        int m = weight->getShapeX();    // rows of A
+        int k = weight->getShapeY();    // cols of A (= rows of B)
+        int n = input->getShapeY();    // cols of B
+
+        if (bias->getTrackGradient()) {
+            currentTensor->handleError(cudaMemDup(gradOut_currTensor, bias->getGradient(), bias->getShapeX(), bias->getShapeY(), false), "Error: Duplicating memory in sfpass failed");
+            bias->changeGradientSet(true);
+        }
+
+        // dA = gradOut_currTensor * B^T
+        currentTensor->handleError(gemm(handleLt, gradOut_currTensor, input->getValue(), weight->getGradient(), 
+            m,      // rows of result (dA)
+            k,      // cols of result (dA)
+            n,      // common dimension
+            CUBLAS_OP_N, CUBLAS_OP_T), 
+            "Error: Gradient calculation of arg1 of sfpass failed");
+        weight->changeGradientSet(true);
+
+        // dB = A^T * gradOut_currTensor
+        currentTensor->handleError(gemm(handleLt, weight->getValue(), gradOut_currTensor, input->getGradient(), 
+            k,      // rows of result (dB)
+            n,      // cols of result (dB)
+            m,      // common dimension
+            CUBLAS_OP_T, CUBLAS_OP_N), 
+            "Error: Gradient calculation of arg2 of sfpass failed");
+        input->changeGradientSet(true);    
+    }
+}
+
+Tensor* Tensor::sfpass(Tensor &weight, Tensor &bias) {
+    // increment reference count of results args (dependencies)
+    this->addReference();
+    weight.addReference();
+    bias.addReference();
+
+    int m = weight.getShapeX();
+    int n = this->getShapeY();
+    int k = this->getShapeX();
+
+    float* d_result = forwardPass(handleLt, weight.getValue(), this->getValue(), bias.getValue(), m, n, k, CUBLAS_OP_N, CUBLAS_OP_N);
+
+    // check error
+    this->handleError(d_result, "Error: An error occured during the computation of the forward pass.");
+
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+    weight.changeGradientSet(false);
+    bias.changeGradientSet(false);
+
+    // return new Tensor
+    return new Tensor(d_result, {m, n}, true, sfpassGradient, &weight, weight.getShape(), this, this->getShape(), &bias, bias.getShape());
 }
 
 // Matrix operations

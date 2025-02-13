@@ -5,10 +5,12 @@
 #include <cuda_runtime.h>
 
 #include "cublas_v2.h"
+#include <cublasLt.h>
 
 #include <stdexcept>
 #include <string>
 
+#include "cudaMem.cuh"
 #include "util.h"
 
 
@@ -130,5 +132,46 @@ cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tens
  * @param async Whether to wait for the update to complete
 */
 cudaError_t scaledSubtraction(float* d_targetMemorySpace, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2, float scalar, bool async);
+
+/**
+ * @brief Performs General Matrix Multiplication (GEMM) using cuBLASLt.
+ *
+ * This function performs the matrix multiplication C = op(A) * op(B),
+ * where op(X) is one of op(X) = X or op(X) = X^T (transpose of X).
+ *
+ * @param handle cuBLASLt handle.
+ * @param d_A Pointer to the first input matrix A in device memory.
+ * @param d_B Pointer to the second input matrix B in device memory.
+ * @param d_C Pointer to result in device memory.
+ * @param m Number of rows of op(matrix A) and op(matrix C).
+ * @param n Number of columns of op(matrix B) and op(matrix C).
+ * @param k Number of columns of op(matrix A) and number of rows of op(matrix B).
+ * @param opA Operation to be performed on matrix A (CUBLAS_OP_N for no transpose, CUBLAS_OP_T for transpose).
+ * @param opB Operation to be performed on matrix B (CUBLAS_OP_N for no transpose, CUBLAS_OP_T for transpose).
+ */
+cublasStatus_t gemm(cublasLtHandle_t* handle, const float* d_A, const float* d_B, float* d_C, int m, int n, int k, cublasOperation_t opA, cublasOperation_t opB);
+
+/**
+ * @brief Performs General Matrix Multiplication (GEMM) using cuBLASLt.
+ *
+ * This function performs the matrix multiplication C = op(A) * op(B),
+ * where op(X) is one of op(X) = X or op(X) = X^T (transpose of X).
+ *
+ * @param handle cuBLASLt handle.
+ * @param d_A Pointer to the first input matrix A in device memory.
+ * @param d_B Pointer to the second input matrix B in device memory.
+ * @param m Number of rows of op(matrix A) and op(matrix C).
+ * @param n Number of columns of op(matrix B) and op(matrix C).
+ * @param k Number of columns of op(matrix A) and number of rows of op(matrix B).
+ * @param opA Operation to be performed on matrix A (CUBLAS_OP_N for no transpose, CUBLAS_OP_T for transpose).
+ * @param opB Operation to be performed on matrix B (CUBLAS_OP_N for no transpose, CUBLAS_OP_T for transpose).
+ * @return Pointer to the resulting matrix C in device memory.
+ */
+float* gemmA(cublasLtHandle_t* handle, const float* d_A, const float* d_B, int m, int n, int k, cublasOperation_t opA, cublasOperation_t opB);
+
+/**
+ * @brief Local error checking for cublas
+ */
+void checkCublasStatus(cublasStatus_t status);
 
 #endif

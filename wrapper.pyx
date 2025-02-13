@@ -31,6 +31,7 @@ cdef extern from "Tensor.h":
         float* getGradientCPU() const
         unsigned int getShapeX() const
         unsigned int getShapeY() const
+        unsigned int getSize() const
 
         void backward()
         void asyncbackpropsgd(float lr)
@@ -68,6 +69,9 @@ cdef extern from "Tensor.h":
         Tensor* relu()
         Tensor* sigmoid()
         Tensor* tanh()
+
+        # Neural Network
+        Tensor* sfpass(Tensor& weight, Tensor& bias)
 
         # Loss Functions
         Tensor* l2(Tensor &other)
@@ -233,6 +237,9 @@ cdef class PyTensor:
 
     def getShapeY(self):
         return self._tensor.getShapeY()
+
+    def getSize(self):
+        return self._tensor.getSize() 
 
     def printValue(self):
         self._tensor.printValue()
@@ -405,6 +412,20 @@ cdef class PyTensor:
 
         return result
 
+    """Neural Network"""
+    def sfpass(self, PyTensor weight, PyTensor bias):
+        # check for correct type
+        if not isinstance(weight, PyTensor) or not isinstance(bias, PyTensor):
+            raise TypeError("operation is only defined for other Tensors")
+
+        # create empty Tensor wrapper
+        result = PyTensor()
+
+        # carry out calculation with actual tensor and wrap result with our empty Tensor wrapper
+        result._tensor = self._tensor.sfpass(weight._tensor[0], bias._tensor[0])
+
+        return result
+
     """activation functions"""
 
     def relu(self):
@@ -556,3 +577,152 @@ cdef class PyTensor:
     @staticmethod
     def initCuda():
         init()
+
+class Sequential:
+    def __init__(self, *layers: list[PyTensor]):
+        self.layers = layers
+
+    def getParams(self) -> list:
+        params = list()
+        for layer in self.layers:
+            params.extend(layer.getParams())
+
+        return params
+    
+    def forward(self, X: PyTensor) -> PyTensor:
+        for layer in self.layers:
+            X = layer.forward(X)
+
+        return X
+
+    def paramCount(self):
+        c = 0
+        for layer in self.layers:
+            for tensor in layer.getParams():
+                c += tensor.getSize()
+
+        return c
+    
+    def __call__(self, X: PyTensor) -> PyTensor:
+        if not isinstance(X, PyTensor):
+            raise TypeError("Argument must be of type <PyTensor>")
+        
+        return self.forward(X)
+
+
+class Linear:
+    def __init__(self, neurons_in: int, neurons_out: int, xavierInit: bool = True, kaimingHeInit: bool = False):
+        if xavierInit and kaimingHeInit:
+            raise ValueError("cannot initalize with both xavier and kaimingHe")
+        
+
+        elif not xavierInit and not kaimingHeInit:
+            raise ValueError("cannot initalize with no initalization technique")
+        
+        self.weights = PyTensor(shape=(neurons_out, neurons_in), xavierInit=xavierInit, kaimingHeInit=kaimingHeInit)
+        self.bias = PyTensor([0 for i in range(neurons_out)], shape=(neurons_out, 1))
+
+    def getParams(self) -> list:
+        return [self.weights, self.bias]
+    
+    def forward(self, X: PyTensor) -> PyTensor:
+        return X.sfpass(self.weights, self.bias)  # sfpass is generally faster and more memory efficient sthan a manual forward pass
+        # return (self.weights @ X) + self.bias
+    
+    def __call__(self, X: PyTensor) -> PyTensor:
+        if not isinstance(X, PyTensor):
+            raise TypeError("Argument must be of type <PyTensor>")
+        
+        return self.forward(X)
+
+
+class Relu():
+    def __init__(self):
+        pass
+
+    def getParams(self) -> list:
+        return []
+    
+    def forward(self, X: PyTensor) -> PyTensor:
+        return X.tanh()
+    
+    def __call__(self, X: PyTensor) -> PyTensor:
+        if not isinstance(X, PyTensor):
+            raise TypeError("Argument must be of type <PyTensor>")
+        
+        return self.forward(X)
+
+
+class Sigmoid():
+    def __init__(self):
+        pass
+
+    def getParams(self) -> list:
+        return []
+    
+    def forward(self, X: PyTensor) -> PyTensor:
+        return X.tanh()
+    
+    def __call__(self, X: PyTensor) -> PyTensor:
+        if not isinstance(X, PyTensor):
+            raise TypeError("Argument must be of type <PyTensor>")
+        
+        return self.forward(X)
+
+class Tanh():
+    def __init__(self):
+        pass
+
+    def getParams(self) -> list:
+        return []
+    
+    def forward(self, X: PyTensor) -> PyTensor:
+        return X.tanh()
+    
+    def __call__(self, X: PyTensor) -> PyTensor:
+        if not isinstance(X, PyTensor):
+            raise TypeError("Argument must be of type <PyTensor>")
+        
+        return self.forward(X)
+
+
+class SGD():
+    def __init__(self, params: list[PyTensor], lr=0.01):
+
+        # initalize params
+        self.params = []
+
+        # save learning rate
+        self.lr = lr
+
+        if isinstance(params, PyTensor):
+            self.params.append(params)
+
+        elif type(params) in {list, tuple}:
+            for param in params:
+                if isinstance(param, PyTensor):
+                    self.params.append(param)
+
+                else:
+                    raise TypeError("Each param must be of type <PyTensor>")
+
+        else:
+            raise TypeError("Params must be PyTensor or list of PyTensors")
+
+    def syncstep(self):
+        for param in self.params:
+            param.sgd(self.lr)
+
+    def asyncstep(self):
+        with AsyncOP():
+            for param in self.params:
+                param.asyncsgd(self.lr)
+
+
+class AsyncOP():
+    def __enter__(self):
+        pass
+
+    def __exit__(self, ex_type, ex_value, ex_traceback):
+        PyTensor.synchronize()
+        return False

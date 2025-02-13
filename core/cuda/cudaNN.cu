@@ -126,29 +126,115 @@ float* tanhAlloc(float* d_tensor, unsigned int size) {
 
 cudaError_t kaiming_he(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed) {
     // set scaling factor for kaiming he init
-    float scaling_factor = 2.0 / out_features;
+    float scaling_factor = 2.0 / in_features;
 
     return weight_init(d_targetMemorySpace, in_features * out_features, scaling_factor, seed);
 }
 
 cudaError_t xavier(float* d_targetMemorySpace, unsigned int in_features, unsigned int out_features, int seed) {
     // set scaling factor for xavier init
-    float scaling_factor = 1.0 / out_features;
+    float scaling_factor = 2.0 / (in_features + out_features);
 
     return weight_init(d_targetMemorySpace, in_features * out_features, scaling_factor, seed);
 }
 
-// WEIGHT UPDATE
+float* forwardPass(cublasLtHandle_t* handle, const float* d_weight, const float* d_input, const float* d_bias, int m, int n, int k, cublasOperation_t opA, cublasOperation_t opB) {
 
-// updates the given weight matrix (passed as pointer to float array), performs error checking 
-void updateWeightMatrix(float* d_weightMatrixToUpdate, float* d_gradient, unsigned int in_features, unsigned int out_features, float learningRate) {
+    // Allocate device memory
+    float* d_output = reserveMemoryOnDevice(m * n);
 
-}
+    // error check
+    if (d_output == nullptr) {
+        printf("Error: Memory allocation for gemm failed");
+        cudaFree(d_output);
+        exit(EXIT_FAILURE);
+    }
 
-// updates the given bias vector (passed as pointer to float array), performs error checking 
-void updateBiasVector(float* d_biasVectorToUpdate, float* d_gradient, unsigned int out_features, float learningRate) {
+    // Create matrix descriptors
+    cublasLtMatrixLayout_t matW, matI, matB, matO;
+
+    cublasLtOrder_t row_major_format = CUBLASLT_ORDER_ROW;
+
+    bool transA = opA == CUBLAS_OP_T;
+    bool transB = opB == CUBLAS_OP_T;
+
+    // For weight matrix
+    checkCublasStatus(cublasLtMatrixLayoutCreate(
+        &matW, CUDA_R_32F, transA ? k : m, transA ? m : k, transA ? m : k));
+
+    checkCublasStatus( cublasLtMatrixLayoutSetAttribute(
+        matW, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_format, sizeof( row_major_format ) ) );
+
+    // For input vector
+    checkCublasStatus(cublasLtMatrixLayoutCreate(
+        &matI, CUDA_R_32F, transB ? n : k, transB ? k : n, transB ? k : n));
     
+    checkCublasStatus( cublasLtMatrixLayoutSetAttribute(
+        matI, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_format, sizeof( row_major_format ) ) );
+
+    // For bias vector
+    checkCublasStatus(cublasLtMatrixLayoutCreate(
+        &matB, CUDA_R_32F, m, n, n));
+
+    checkCublasStatus( cublasLtMatrixLayoutSetAttribute(
+        matB, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_format, sizeof(row_major_format)));
+
+    // For output vector
+    checkCublasStatus(cublasLtMatrixLayoutCreate(
+        &matO, CUDA_R_32F, m, n, n));
+
+    checkCublasStatus( cublasLtMatrixLayoutSetAttribute(
+        matO, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_format, sizeof(row_major_format)));
+
+
+    // Create operation descriptor
+    cublasLtMatmulDesc_t operationDesc;
+    checkCublasStatus(cublasLtMatmulDescCreate(&operationDesc, CUBLAS_COMPUTE_32F, CUDA_R_32F));
+
+    // Set transpose operations
+    checkCublasStatus(cublasLtMatmulDescSetAttribute(
+        operationDesc, CUBLASLT_MATMUL_DESC_TRANSA,
+        &opA, sizeof(opA)));
+    checkCublasStatus(cublasLtMatmulDescSetAttribute(
+        operationDesc, CUBLASLT_MATMUL_DESC_TRANSB,
+        &opB, sizeof(opB)));
+
+    // Scale factors
+    float alpha = 1.0f;
+    float beta = 1.0f;
+
+    // Perform matrix multiplication
+    checkCublasStatus(cublasLtMatmul(
+        *handle,
+        operationDesc,
+        &alpha,
+        d_weight,
+        matW,
+        d_input,
+        matI,
+        &beta,
+        d_bias,
+        matB,
+        d_output,
+        matO,
+        nullptr,
+        nullptr,
+        0,
+        0));
+
+    // wait for completion
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    // Cleanup
+    cublasLtMatrixLayoutDestroy(matW);
+    cublasLtMatrixLayoutDestroy(matI);
+    cublasLtMatrixLayoutDestroy(matB);
+    cublasLtMatrixLayoutDestroy(matO);
+    cublasLtMatmulDescDestroy(operationDesc);
+
+    return d_output;
 }
+
 
 // MATH
 
