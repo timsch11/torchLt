@@ -6,10 +6,10 @@ Set-Location $PSScriptRoot
 Set-Location ..
 
 # Make bin directory
-mkdir bin
+mkdir bin -Force
 Set-Location bin 
-mkdir cppbuild
-mkdir cpplib
+mkdir cppbuild -Force
+mkdir cpplib -Force
 Set-Location ..
 
 # Compile source files to objects
