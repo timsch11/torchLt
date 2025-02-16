@@ -174,6 +174,18 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
     this->graphStream = unifiedGraphStream;
 }
 
+Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, float constant) 
+: Tensor(nullptr, _shape, _track_gradient) {
+    unsigned int size = _shape.first * _shape.second;
+    this->d_value = reserveMemoryOnDevice(size);
+
+    // error check
+    this->handleError(this->d_value, "Error: Memory allocation failed");
+
+    // fill with constant
+    this->handleError(constants(this->d_value, size, constant), "Error: Tensor initalization with constant values failed");
+}
+
 // initalize result of triple tensor operation (=sfpass)
 Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1, Tensor* _d_funcArg2, std::pair<unsigned int, unsigned int> _shapeFuncArg2, Tensor* _d_funcArg3, std::pair<unsigned int, unsigned int> _shapeFuncArg3)
 : Tensor(_d_value, _shape, _track_gradient, _gradFunction, _d_funcArg1, _shapeFuncArg1, _d_funcArg2, _shapeFuncArg2) {
@@ -1149,6 +1161,57 @@ Tensor* Tensor::tanh() {
     return new Tensor(d_tanhValue, this->getShape(), true, tanhGradient, this, this->getShape());
 }
 
+/**
+ * @brief Computes the gradient of the softmax function for the given tensor.
+ *
+ * This function calculates the gradient of the softmax function and stores it
+ * in the gradient attribute of the tensor. It also sets the gradientSet flag to true
+ * to indicate that the gradient has been computed and stored.
+ *
+ * @param currentTensor Pointer to the tensor for which the softmax gradient is to be computed.
+ */
+static void softmaxGradient(Tensor* currentTensor) {
+    // cache arg1
+    Tensor* tensorGrad = currentTensor->getArg1();
+
+    // check if gradient is tracked
+    if (tensorGrad->getTrackGradient()) {
+        // compute gradient store in tensor's gradient attribute
+        if (currentTensor->isGradientSet()) {
+            // get partial gradient 
+            float* partialGrad = currentTensor->getGradient();
+
+            // multiply gradient with preceding partial gradient (chain rule)
+            currentTensor->handleError(softmaxGrad(tensorGrad->getGradient(), currentTensor->getValue(), partialGrad, tensorGrad->getSize()), 
+                "Error: gradient calculation (operation: softmax) failed");
+        } else {
+            // no previous partial gradient
+            currentTensor->handleError(softmaxGrad(tensorGrad->getGradient(), currentTensor->getValue(), nullptr, tensorGrad->getSize()),
+                "Error: gradient calculation (operation: softmax) failed");
+        }
+
+        // set gradientSet flag
+        tensorGrad->changeGradientSet(true);
+    }
+}
+
+Tensor* Tensor::softmax() {
+    // increment reference count of results args (dependencies)
+    this->addReference();
+
+    // compute tanh func store result in newly allocated memory section and return pointer to it
+    float* d_result = softmaxAlloc(this->getValue(), this->getSize());
+
+    // check error
+    this->handleError(d_result, "Error: Softmax failed");
+
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+
+    // return new tensor that holds the result of the tanh function as a value and corresponding shape and gradient function
+    return new Tensor(d_result, this->getShape(), true, softmaxGradient, this, this->getShape());
+}
+
 // LOSS FUNCTIONS
 
 /**
@@ -1207,6 +1270,85 @@ Tensor* Tensor::l2(Tensor &other) {
 
     // return new Tensor
     return new Tensor(d_result, {1, 1}, true, l2Gradient, this, this->getShape(), &other, other.getShape());
+}
+
+Tensor* Tensor::l2NoVal(Tensor &other) {
+    // increment reference count of results args (dependencies)
+    this->addReference();
+    other.addReference();
+
+    float* d_result = reserveMemoryOnDevice(1);
+
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+    other.changeGradientSet(false);
+
+    // return new Tensor
+    return new Tensor(d_result, {1, 1}, true, l2Gradient, this, this->getShape(), &other, other.getShape());
+}
+
+/**
+ * @brief Calculates the gradient for the categorical cross entropy Loss operation applied to a tensor.
+ *
+ * This function retrieves the prediction tensor (arg1) and, if gradient tracking is enabled,
+ * fetches the corresponding label tensor (arg2). It then computes the cross entropy Loss gradient using
+ * the prediction's gradient and value along with the label values. The resulting gradient is
+ * stored in the tensor's gradient attribute. In case of an error during the gradient computation,
+ * the function handles it by invoking the error handler on the tensor.
+ *
+ * @param currentTensor Pointer to the Tensor structure for which the cross entropy Loss gradient is computed.
+ *
+ * @note The gradient is only computed wrt to the prediction values (gradient wrt to the labels makes no sense).
+ */
+static void crossEntropyLossGradient(Tensor* currentTensor) {
+    // cache arg1 (prediction)
+    Tensor* predicted = currentTensor->getArg1();   // predictions of L2 Loss operation
+
+    // check if gradient is tracked
+    if (predicted->getTrackGradient()) {
+        Tensor* actual = currentTensor->getArg2();      // labels of L2 Loss operation
+
+        // compute gradient store in tensor's gradient attribute
+        if (currentTensor->isGradientSet()) {
+            // get partial gradient 
+            float* partialGrad = currentTensor->getGradient();
+
+            // multiply gradient with preceding partial gradient (chain rule)
+            // compute gradient store in tensor's gradient attribute, pass currentTensor's value for simplifying computation
+            currentTensor->handleError(crossEntropyLossGrad(predicted->getGradient(), predicted->getValue(), actual->getValue(), partialGrad, predicted->getSize()), "Error: gradient calculation (operation: Cross Entropy Loss) failed");
+        } else {
+            // no previous partial gradient
+            // compute gradient store in tensor's gradient attribute, pass currentTensor's value for simplifying computation
+            currentTensor->handleError(crossEntropyLossGrad(predicted->getGradient(), predicted->getValue(), actual->getValue(), nullptr, predicted->getSize()), "Error: gradient calculation (operation: Cross EntropyL2 Loss) failed");
+        }
+
+        // set gradientSet flag
+        predicted->changeGradientSet(true);
+    }
+}
+
+Tensor* Tensor::categoricalCrossEntropy(Tensor &other) {
+    if (!this->sameShape(other) || this->getShapeY() != 1 || other.getShapeY() != 1) {
+        printf("Tensors must be vectors and have the same shape to comnpute the cross entropy loss");
+        delete this;
+        return nullptr;
+    }
+
+    // increment reference count of results args (dependencies)
+    this->addReference();
+    other.addReference();
+
+    float* d_result = categoricalCrossEntropyLossAlloc(this->getValue(), other.getValue(), this->getSize());
+
+    // check error
+    this->handleError(d_result, "Error: An error occured during the computation of the cross entropy loss");
+
+    // disable gradientSet flag
+    this->changeGradientSet(false);
+    other.changeGradientSet(false);
+
+    // return new Tensor
+    return new Tensor(d_result, {1, 1}, true, crossEntropyLossGradient, this, this->getShape(), &other, other.getShape());
 }
 
 // Neural Network operations
@@ -1509,12 +1651,12 @@ Tensor::~Tensor() {
 
     // free occupied memory
     if (this->d_value != nullptr) {
-        CHECK_CUDA_ERROR(cudaFree(this->d_value));
+        cudaFree(this->d_value);
         this->d_value = nullptr;
     }
 
     if (this->getTrackGradient() && this->d_gradient != nullptr) {
-        CHECK_CUDA_ERROR(cudaFree(this->d_gradient));
+        cudaFree(this->d_gradient);
         this->d_gradient = nullptr;
     }
 

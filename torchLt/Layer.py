@@ -172,7 +172,53 @@ class Tanh():
             PyTensor: The output tensor after applying the Tanh function.
         """
         pass
+
+
+class Softmax():
+
+    """
+    A class representing the Softmax activation function.
+    Methods:
+        __init__():
+        getParams() -> list:
+        forward(X: PyTensor) -> PyTensor:
+        __call__(X: PyTensor) -> PyTensor:
+    """
+
+    def __init__(self):
+        """
+        Initialize the Softmax activation function.
+        """
+        pass
+
+    def getParams(self) -> list:
+        """
+        Get the parameters of the Softmax layer.
+        Returns:
+            list: An empty list as Softmax has no parameters.
+        """
+        pass
+    
+    def forward(self, X: PyTensor) -> PyTensor:
+        """
+        Perform the forward pass using the Softmax activation function.
+        Args:
+            X (PyTensor): The input tensor.
+        Returns:
+            PyTensor: The output tensor after applying the Softmax function.
+        """
+        pass
+    
+    def __call__(self, X: PyTensor) -> PyTensor:
+        """
+        Make the Softmax layer callable.
+        Args:
+            X (PyTensor): The input tensor.
+        Returns:
+            PyTensor: The output tensor after applying the Softmax function.
+        """
+        pass
     
 
 # overwrite interface with actual functions
-from cuTensorCpy import Linear, Relu, Sigmoid, Tanh
+from cuTensorCpy import Linear, Relu, Sigmoid, Tanh, Softmax

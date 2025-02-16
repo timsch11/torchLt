@@ -135,6 +135,14 @@ class Tensor {
         Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1, Tensor* _d_funcArg2, std::pair<unsigned int, unsigned int> _shapeFuncArg2, Tensor* _d_funcArg3, std::pair<unsigned int, unsigned int> _shapeFuncArg3);
 
         /**
+         * @brief Constructor for creating a Tensor of specified shape initalized with constant value
+         * @param _shape Shape of the Tensor
+         * @param _track_gradient Whether to track gradients for this tensor
+         * @param constant Constant that should be used to fill Tensor
+         */
+        Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, float constant);
+        
+        /**
          * @brief Constructor for creating a leaf Tensor
          * @param _d_value Pointer to device memory containing tensor values
          * @param _shape Shape of the tensor as (rows, columns) pair
@@ -653,6 +661,13 @@ class Tensor {
          * @return Pointer to new tensor with l2 loss of <this> and <other>
          */
         Tensor* l2(Tensor &other);
+
+        /**
+         * @brief Does not calculate the L2 loss! Can be used for backpropagation if the actual value of the loss is of no interest
+         * @return Pointer to new tensor that can be used only for backpropagation of the l2 loss
+         * @note Only use for backpropagation: The actual value of the resulting Tensor points to allocated but uninitalized memory!
+         */
+        Tensor* l2NoVal(Tensor &other);
 
         /**
          * @brief Applies softmax and calculates categorical cross entropy loss between to distributions

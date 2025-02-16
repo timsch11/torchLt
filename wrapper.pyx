@@ -16,6 +16,7 @@ cdef extern from "Factory.h":
     Tensor* createTensorFromHost(float* _h_value, pair[unsigned int, unsigned int] _shape, bool _track_gradient)
     Tensor* createTensorWithXavierInit(pair[unsigned int, unsigned int] _shape, bool _track_gradient, int seed)
     Tensor* createTensorWithKaimingHeInit(pair[unsigned int, unsigned int] _shape, bool _track_gradient, int seed)
+    Tensor* createTensorWithConstants(pair[unsigned int, unsigned int] _shape, bool _track_gradient, float constant)
     void sync()
     void init()
 
@@ -69,12 +70,16 @@ cdef extern from "Tensor.h":
         Tensor* relu()
         Tensor* sigmoid()
         Tensor* tanh()
+        Tensor* softmax()
 
         # Neural Network
         Tensor* sfpass(Tensor& weight, Tensor& bias)
 
         # Loss Functions
         Tensor* l2(Tensor &other)
+        Tensor* l2NoVal(Tensor &other)
+        
+        Tensor* categoricalCrossEntropy(Tensor &other)
 
         # Matrix operations
         Tensor* transpose()
@@ -331,6 +336,8 @@ cdef class PyTensor:
 
     def add(self, PyTensor other):
         # check for correct type
+        if type(other) in {int, float}:
+            return self.add(PyTensor.constants(shape=(self.getShapeX(), self.getShapeY()), constant=other))
         if not isinstance(other, PyTensor):
             raise TypeError("operation is only defined for other Tensors")
 
@@ -458,6 +465,18 @@ cdef class PyTensor:
 
         return result
 
+    def softmax(self):
+
+        print("Warning: Softmax is not numerically stable yet for large inputs")
+
+        # create empty Tensor wrapper
+        result = PyTensor()
+
+        # carry out calculation with actual tensor and wrap result with our empty Tensor wrapper
+        result._tensor = self._tensor.softmax()
+
+        return result
+
     """loss functions"""
 
     def l2(self, PyTensor other):
@@ -479,6 +498,22 @@ cdef class PyTensor:
 
         return result
 
+    def categoricalCrossEntropy(self, PyTensor other):
+        # check for correct shape
+        if not self.sameShape(other):
+            raise ValueError("Incompatible shapes: Shapes must match for l2 loss")
+        
+        if self._tensor.getShapeY() != 1:
+            raise ValueError("Incompatible shapes: Tensors need to be column vectors to calculate l2 loss")
+
+        # create empty Tensor wrapper
+        result = PyTensor()
+
+        # carry out calculation with actual tensor and wrap result with our empty Tensor wrapper
+        result._tensor = self._tensor.categoricalCrossEntropy(other._tensor[0])
+
+        return result
+
     """matrix operations"""
 
     def transpose(self):
@@ -491,7 +526,7 @@ cdef class PyTensor:
 
     """operator overloading"""
     
-    def __add__(self, PyTensor other):
+    def __add__(self, other):
         return self.add(other)
 
     def __sub__(self, PyTensor other):
@@ -577,6 +612,33 @@ cdef class PyTensor:
     @staticmethod
     def initCuda():
         init()
+
+    """static utils"""
+
+    @staticmethod
+    def constants(shape: tuple, constant: float):
+        if not type(shape) in {tuple, list}:
+            raise TypeError("Error: Shape must be of type tuple or list")
+
+        elif len(shape) != 2:
+            raise TypeError("Error: Shape must have two values")
+
+        if not type(constant) in {float, int}:
+            raise TypeError("Error: Constant must be of type float or integer")
+
+        # create empty Tensor wrapper
+        result = PyTensor()
+
+        # Create shape pair
+        cdef pair[unsigned int, unsigned int] cpp_shape
+
+        cpp_shape.first = shape[0]
+        cpp_shape.second = shape[1]
+
+        # wrap result with empty Tensor wrapper
+        result._tensor = createTensorWithConstants(cpp_shape, True, float(constant))
+
+        return result
 
 class Sequential:
     def __init__(self, *layers: list[PyTensor]):
@@ -678,6 +740,22 @@ class Tanh():
     
     def forward(self, X: PyTensor) -> PyTensor:
         return X.tanh()
+    
+    def __call__(self, X: PyTensor) -> PyTensor:
+        if not isinstance(X, PyTensor):
+            raise TypeError("Argument must be of type <PyTensor>")
+        
+        return self.forward(X)
+
+class Softmax():
+    def __init__(self):
+        pass
+
+    def getParams(self) -> list:
+        return []
+    
+    def forward(self, X: PyTensor) -> PyTensor:
+        return X.softmax()
     
     def __call__(self, X: PyTensor) -> PyTensor:
         if not isinstance(X, PyTensor):

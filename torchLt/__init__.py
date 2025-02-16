@@ -216,6 +216,36 @@ class PyTensor:
         """
         pass
 
+    def l2backprop(self, other: 'PyTensor') -> 'PyTensor':
+        """
+        Loss wrapper for backpropagation: Speeds up backpropagation if the actual loss values is of no interest
+
+        Args:
+            other (Tensor): PyTensor to represent truth-value
+
+        Returns:
+            PyTensor
+
+        Raises:
+            TypeError: If other is not a PyTensor
+        """
+        pass
+
+    def categoricalCrossEntropy(self, other: 'PyTensor') -> 'PyTensor':
+        """
+        categorical cross entropy: <self> represents prediction, <other> represents actual values
+
+        Args:
+            other (Tensor): PyTensor to represent truth-value
+
+        Returns:
+            PyTensor: New PyTensor containing cross entropy loss
+
+        Raises:
+            TypeError: If other is not a PyTensor
+        """
+        pass
+
     def relu(self) -> 'PyTensor':
         """
         Apply ReLU activation function element-wise.
@@ -240,6 +270,15 @@ class PyTensor:
 
         Returns:
             PyTensor: New PyTensor with tanh activation applied
+        """
+        pass
+
+    def softmax(self) -> 'PyTensor':
+        """
+        Apply softmax function to the vector.
+
+        Returns:
+            PyTensor: New PyTensor with softmax applied.
         """
         pass
 

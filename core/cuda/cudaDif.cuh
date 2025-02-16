@@ -170,4 +170,13 @@ __global__ void __l2LossGrad(float* d_targetMemorySpace, float* d_predicted, flo
  */
 cudaError_t l2LossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_actual, float* d_droot_dthis, unsigned int size);
 
+__global__ void __crossEntropyLossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_actual, float* d_droot_dthis);
+
+__global__ void __crossEntropyLossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_actual);
+
+cudaError_t crossEntropyLossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_actual, float* d_droot_dthis, unsigned int size);
+
+// Computes gradient of softmax function
+cudaError_t softmaxGrad(float* d_targetMemorySpace, float* d_softmax_output, float* d_droot_dthis, unsigned int size);
+
 #endif

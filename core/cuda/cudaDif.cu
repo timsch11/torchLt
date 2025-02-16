@@ -138,3 +138,82 @@ cudaError_t l2LossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_
 
     return err;
 }
+
+__global__ void __crossEntropyLossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_actual, float* d_droot_dthis) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // result of loss is scalar -> d_droot_dthis is just a single value
+    d_targetMemorySpace[i] = *d_droot_dthis * (d_predicted[i] - d_actual[i]);
+}
+
+__global__ void __crossEntropyLossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_actual) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    d_targetMemorySpace[i] = d_predicted[i] - d_actual[i];
+}
+
+cudaError_t crossEntropyLossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_actual, float* d_droot_dthis, unsigned int size) {
+    // compute optimal block/thread distribution
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
+
+    if (d_droot_dthis == nullptr) {
+        // execute computation
+        __crossEntropyLossGrad<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_predicted, d_actual);
+    } else {
+        // execute computation with prior gradient
+        __crossEntropyLossGrad<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_predicted, d_actual, d_droot_dthis);
+    }
+
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    return err;
+}
+
+__global__ void __softmaxGrad(float* d_targetMemorySpace, float* d_softmax_output, float* d_droot_dthis) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    float Si = d_softmax_output[i];
+    
+    // Compute sum for Jacobian-vector product
+    __shared__ float sum;
+    if (threadIdx.x == 0) {
+        sum = 0.0f;
+    }
+    __syncthreads();
+    
+    atomicAdd(&sum, Si * d_droot_dthis[i]);
+    __syncthreads();
+    
+    // Compute final gradient: Si * (dL/dSi - sum)
+    d_targetMemorySpace[i] = Si * (d_droot_dthis[i] - sum);
+}
+
+__global__ void __softmaxGrad(float* d_targetMemorySpace, float* d_softmax_output) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    float Si = d_softmax_output[i];
+    d_targetMemorySpace[i] = Si * (1.0f - Si);
+}
+
+cudaError_t softmaxGrad(float* d_targetMemorySpace, float* d_softmax_output, float* d_droot_dthis, unsigned int size) {
+    // compute optimal block/thread distribution
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(size);
+
+    if (d_droot_dthis == nullptr) {
+        // execute computation without chain rule
+        __softmaxGrad<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_softmax_output);
+    } else {
+        // execute computation with chain rule
+        __softmaxGrad<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_softmax_output, d_droot_dthis);
+    }
+
+    // check for errors
+    cudaError_t err = cudaGetLastError();
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    return err;
+}
+

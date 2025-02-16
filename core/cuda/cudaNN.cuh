@@ -10,6 +10,11 @@
 #include <cuda_runtime.h>
 
 
+// Reduces a block into <BLOCK_REDUCTION_SIZE> equal chunks for parallel reduction (used in softmax)
+#define BLOCK_REDUCTION_SIZE 16
+#define BLOCK_REDUCTION_LEFTOVER 32  // = BLOCK_SIZE / BLOCK_REDUCTION_SIZE
+
+
 /**
  * @brief Applies ReLU (Rectified Linear Unit) activation function element-wise to a vector
  * 
@@ -203,6 +208,7 @@ float* tensorsubAlloc(float* d_vector1, unsigned int vectorSize1, float* d_vecto
  * @param by Number of columns of B (ShapeY)
  */
 float* matmul__ATB(cublasHandle_t* handle, int ax, int ay, int bx, int by, const float *A, const float *B, float *C);
+
 float* matmul__ABT(int ax, int ay, int bx, int by, const float *A, const float *B, float *C);
 
 /**
@@ -222,6 +228,7 @@ float* matmulAlloc(cublasHandle_t* handle, int ax, int ay, int bx, int by, const
  * @param d_actual Array of actual/target values
  */
 __global__ void __elementWiseL2Loss(float* d_result, float* d_predicted, float* d_actual);
+
 /** 
  * @brief addUp Performs parallel reduction to sum up array elements in blocks
  * @param d_result Pointer to single float to store final sum
@@ -230,6 +237,7 @@ __global__ void __elementWiseL2Loss(float* d_result, float* d_predicted, float* 
  * @param stop Upper bound for summation
  */
 __global__ void addUp(float* d_result, float* d_target, unsigned int elements, unsigned int stop);
+
 /**
  * @brief l2LossAlloc Allocates memory and computes L2 Loss between predicted and actual vectors
  * @param d_predicted Device pointer to predicted values
@@ -242,5 +250,22 @@ __global__ void addUp(float* d_result, float* d_target, unsigned int elements, u
 float* l2LossAlloc(float* d_predicted, float* d_actual, std::pair<unsigned int, unsigned int> shape_predicted, std::pair<unsigned int, unsigned int> shape_actual);
 
 float* dotAlloc(cublasHandle_t* handle, float* d_vector1, unsigned int vectorSize1, float* d_vector2, unsigned int vectorSize2);
+
+/**
+ * @brief Applies softmax to the input vector and stores the result in newly allocated memory
+ * @param d_vector Input vector to apply softmax to
+ * @param vectorSize Number of entries in d_input
+ * @return Pointer to memory section holding result
+ */
+float* softmaxAlloc(float* d_vector, unsigned int vectorSize);
+
+/**
+ * @brief categoricalCrossEntropyLossAlloc Allocates memory and computes categorical cross entropy between predicted and actual vectors
+ * @param d_predicted Device pointer to predicted values
+ * @param d_actual Device pointer to actual/target values  
+ * @param vectorSize Size of predicted tensor (must be vector)
+ * @return Device pointer to single float containing L2 Loss value, or nullptr if error occurs
+ */
+float* categoricalCrossEntropyLossAlloc(float* d_predicted, float* d_actual, unsigned int vectorSize);
 
 #endif

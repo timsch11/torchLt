@@ -584,3 +584,175 @@ float* dotAlloc(cublasHandle_t* handle, float* d_vector1, unsigned int vectorSiz
 
     return d_result;
 }
+
+__global__ void __softmax_exp_sum(float* d_targetMemorySpace, float* d_vector, unsigned int size) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    float expx = 0.0f;
+    if (i < size) {
+        expx = expf(d_vector[i]);
+        d_targetMemorySpace[i] = expx;
+    }
+    // Warp-level reduction using shuffle instructions
+    float sum = expx;
+    for (unsigned int offset = warpSize / 2; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xffffffff, sum, offset);
+    }
+    // Each warp leader adds its partial sum to global sum
+    if ((threadIdx.x & (warpSize - 1)) == 0) {
+        atomicAdd(&d_targetMemorySpace[size], sum);
+    }
+}
+
+__global__ void __softmax_normalize(float* d_targetMemorySpace, unsigned int size) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < size) {
+        // Normalize using the total sum stored at d_targetMemorySpace[size]
+        d_targetMemorySpace[i] /= d_targetMemorySpace[size];
+    }
+}
+
+float* softmaxAlloc(float* d_vector, unsigned int vectorSize) {
+    // allocate required memory, add 1 to cache sum of e^xi 
+    float* d_result = reserveMemoryOnDevice(vectorSize + 1);
+
+    if (d_result == nullptr) {
+        printf("Error: Softmax failed");
+        return nullptr;
+    }
+
+    // initalize sum placeholder to zero
+    CHECK_CUDA_ERROR(cudaMemset(d_result + vectorSize, 0, 1 * sizeof(float)));
+    
+    // compute block size
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(vectorSize);
+
+    // Count bytes needed for shared memory
+    size_t sharedMemorySize = BLOCK_REDUCTION_SIZE * sizeof(float);
+
+    // launch kernel
+    __softmax_exp_sum<<<blocksThreads.first, blocksThreads.second, sharedMemorySize, 0>>>(d_result, d_vector, vectorSize);
+    __softmax_normalize<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_result, vectorSize);
+
+    cudaError_t err = cudaGetLastError();
+    
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    if (err != cudaSuccess) {
+        printf("Error when performing softmax");
+        return nullptr;
+    }
+
+    // return pointer to result
+    return d_result;
+}
+
+__global__ void __categoricalCrossEntropyLoss_exp_sum(float* d_targetMemorySpace, float* d_predicted, unsigned int size) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    if (i < size) {
+        __shared__ float blockExpSum[BLOCK_REDUCTION_SIZE];
+
+        // Initialize shared memory to 0
+        if (threadIdx.x < BLOCK_REDUCTION_SIZE) {
+            blockExpSum[threadIdx.x] = 0.0f;
+        }
+
+        __syncthreads();
+
+        // Calculate exp(x) for softmax
+        float expx = expf(d_predicted[i]);
+        
+        // Store exp(x) for later use
+        d_targetMemorySpace[i] = expx;
+
+        // Sum up exp values for softmax denominator
+        atomicAdd(&blockExpSum[threadIdx.x / BLOCK_REDUCTION_LEFTOVER], expx);
+
+        __syncthreads();
+
+        if (threadIdx.x == 0) {
+            float blockSum = 0;
+            for (int j = 0; j < BLOCK_REDUCTION_SIZE; j++) {
+                blockSum += blockExpSum[j];
+            }
+            atomicAdd(&d_targetMemorySpace[size], blockSum);
+        }
+    }
+}
+
+__global__ void __categoricalCrossEntropyLoss_final(float* d_targetMemorySpace, float* d_calcMem, float* d_actual, unsigned int size) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    if (i < size) {
+        __shared__ float blockLossSum[BLOCK_REDUCTION_SIZE];
+
+        // Initialize shared memory to 0
+        if (threadIdx.x < BLOCK_REDUCTION_SIZE) {
+            blockLossSum[threadIdx.x] = 0.0f;
+        }
+
+        __syncthreads();
+        
+        // Calculate softmax probability and cross entropy loss using the complete sum
+        float softmax_prob = d_calcMem[i] / d_calcMem[size];
+        float loss = -d_actual[i] * logf(fmaxf(softmax_prob, 1e-7f));
+        
+        // Sum up loss values
+        atomicAdd(&blockLossSum[threadIdx.x / BLOCK_REDUCTION_LEFTOVER], loss);
+
+        __syncthreads();
+
+        if (threadIdx.x == 0) {
+            float blockLoss = 0;
+            for (int j = 0; j < BLOCK_REDUCTION_SIZE; j++) {
+                blockLoss += blockLossSum[j];
+            }
+            atomicAdd(d_targetMemorySpace, blockLoss);
+        }
+    }
+}
+
+float* categoricalCrossEntropyLossAlloc(float* d_predicted, float* d_actual, unsigned int vectorSize) {
+    // allocate memory for intermediate results and final loss
+    // size + 1 for exp sum, + 1 for final loss
+    float* d_calcMem = reserveMemoryOnDevice(vectorSize + 1);
+
+    float* d_result = reserveMemoryOnDevice(1);
+
+
+    if (d_calcMem == nullptr) {
+        printf("Error: Categorical cross entropy loss failed - memory allocation failed\n");
+        return nullptr;
+    }
+
+    // Initialize sum and loss to 0
+    CHECK_CUDA_ERROR(cudaMemset(d_calcMem + vectorSize, 0, sizeof(float)));
+    CHECK_CUDA_ERROR(cudaMemset(d_result, 0, sizeof(float)));
+    
+    // compute block size
+    std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(vectorSize);
+
+    // Count bytes needed for shared memory
+    size_t sharedMemorySize = BLOCK_REDUCTION_SIZE * sizeof(float);
+
+    // First kernel: compute exp values and their sum
+    __categoricalCrossEntropyLoss_exp_sum<<<blocksThreads.first, blocksThreads.second, sharedMemorySize, 0>>>(d_calcMem, d_predicted, vectorSize);
+
+    // Second kernel: compute cross entropy loss using complete sum
+    __categoricalCrossEntropyLoss_final<<<blocksThreads.first, blocksThreads.second, sharedMemorySize, 0>>>(d_result, d_calcMem, d_actual, vectorSize);
+
+    cudaError_t err = cudaGetLastError();
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    if (err != cudaSuccess) {
+        printf("Error when performing categorical cross entropy loss: %s\n", cudaGetErrorString(err));
+        cudaFree(d_calcMem);
+        return nullptr;
+    }
+    
+    // Clean up intermediate results
+    CHECK_CUDA_ERROR(cudaFree(d_calcMem));
+
+    return d_result;
+}

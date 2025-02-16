@@ -9,7 +9,7 @@
 
 
 // set preferred block size
-#define BLOCK_SIZE 256
+#define BLOCK_SIZE 512
 
 
 std::pair<unsigned int, unsigned int> computeBlockThreadAllocation(unsigned int size);

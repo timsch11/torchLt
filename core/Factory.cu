@@ -46,6 +46,21 @@ Tensor* createTensorWithKaimingHeInit(std::pair<unsigned int, unsigned int> _sha
     return obj;
 }
 
+Tensor* createTensorWithConstants(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, float constant) {
+    Tensor* obj = nullptr;
+
+    try {
+        obj = new Tensor(_shape, _track_gradient, constant);
+    } catch(std::runtime_error exc) {
+        delete obj;
+        
+        std::cout << "Error when trying to create Tensor: " << std::string(exc.what()) << "\n";
+        exit(EXIT_FAILURE);
+    }
+
+    return obj;
+}
+
 Tensor* createTensorFromDevice(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1) {
     Tensor* obj = nullptr;
 

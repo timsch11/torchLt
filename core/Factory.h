@@ -42,6 +42,14 @@ Tensor* createTensorWithXavierInit(std::pair<unsigned int, unsigned int> _shape,
 Tensor* createTensorWithKaimingHeInit(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed);
 
 /**
+ * @brief Creates a Tensor initalized with <constant>
+ * @param _shape Shape of the Tensor
+ * @param _track_gradient Whether to track gradients for this tensor
+ * @param constant Constant that should be used to fill Tensor
+ */
+Tensor* createTensorWithConstants(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, float constant);
+
+/**
  * @brief Factory for creating a Tensor as result of a unary operation
  * @param _d_value Pointer to device memory containing tensor values
  * @param _shape Shape of the tensor as (rows, columns) pair
