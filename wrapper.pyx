@@ -811,6 +811,9 @@ cdef class MomentumWrap():
     def __cinit__(self, PyTensor param, float lr, float beta):
         self.wrapper = new MomentumWrapper(param._tensor[0], lr, beta)
 
+    def __dealloc__(self):
+        del self.wrapper
+
     def asyncstep(self):
         self.wrapper.step(True)
 
