@@ -18,4 +18,21 @@ class SGD():
         pass
 
 
-from cuTensorCpy import SGD
+class Momentum():
+    def __init__(self, params: list[PyTensor], lr=0.01, beta=0.8):
+        pass
+
+    def syncstep(self):
+        """
+        Performs an optimization step: Parameter updates are carried out sequentially
+        """
+        pass
+
+    def asyncstep(self):
+        """
+        Performs an optimization step: Parameter updates are carried out in parallel. Function terminated after all updates have occured.
+        """
+        pass
+
+
+from cuTensorCpy import SGD, Momentum

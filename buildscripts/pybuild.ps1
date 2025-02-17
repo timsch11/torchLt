@@ -22,12 +22,14 @@ nvcc -c core/cuda/cudaDif.cu -o bin/pybuilt/cudadif.obj -Xcompiler "/MD" -I"$INC
 nvcc -c core/cuda/cudaMath.cu -o bin/pybuilt/cudamath.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
 nvcc -c core/cuda/cudaMem.cu -o bin/pybuilt/cudamem.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
 nvcc -c core/cuda/cudaNN.cu -o bin/pybuilt/cudann.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/optimization/MomentumWrapper.cu -o bin/pybuilt/momentumwrapper.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/optimization/weightUpdate.cu -o bin/pybuilt/weightupdate.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
 
 # Create static library
-nvcc -lib bin/pybuilt/util.obj bin/pybuilt/factory.obj bin/pybuilt/tensor.obj bin/pybuilt/cudadif.obj bin/pybuilt/cudamath.obj bin/pybuilt/cudamem.obj bin/pybuilt/cudann.obj -o bin/pylib/Tensor.lib
+nvcc -lib bin/pybuilt/util.obj bin/pybuilt/factory.obj bin/pybuilt/tensor.obj bin/pybuilt/cudadif.obj bin/pybuilt/cudamath.obj bin/pybuilt/cudamem.obj bin/pybuilt/cudann.obj bin/pybuilt/momentumwrapper.obj bin/pybuilt/weightupdate.obj -o bin/pylib/Tensor.lib
 
 # Create dll
-nvcc -lib bin/pybuilt/util.obj bin/pybuilt/factory.obj bin/pybuilt/tensor.obj bin/pybuilt/cudadif.obj bin/pybuilt/cudamath.obj bin/pybuilt/cudamem.obj bin/pybuilt/cudann.obj -Xcompiler "/MD" -o bin/pylib/Tensor.dll
+nvcc -lib bin/pybuilt/util.obj bin/pybuilt/factory.obj bin/pybuilt/tensor.obj bin/pybuilt/cudadif.obj bin/pybuilt/cudamath.obj bin/pybuilt/cudamem.obj bin/pybuilt/cudann.obj bin/pybuilt/momentumwrapper.obj bin/pybuilt/weightupdate.obj -Xcompiler "/MD" -o bin/pylib/Tensor.dll
 
 $pythonPath = & python -c "import sys; print(sys.executable)"
 

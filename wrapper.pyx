@@ -7,6 +7,7 @@ from libcpp cimport bool  # Add bool type
 from libc.string cimport memcpy
 
 from libc.stdlib cimport rand
+from libcpp.vector cimport vector
 
 
 np.import_array()  # Initialize NumPy C-API
@@ -19,6 +20,13 @@ cdef extern from "Factory.h":
     Tensor* createTensorWithConstants(pair[unsigned int, unsigned int] _shape, bool _track_gradient, float constant)
     void sync()
     void init()
+
+
+# Import from Momentum optimizer
+cdef extern from "optimization\MomentumWrapper.h":
+    cdef cppclass MomentumWrapper:
+        MomentumWrapper(Tensor &tensor, float lr, float beta)
+        void step(bool asynchronous)
 
 
 # Import from Tensor library
@@ -795,6 +803,57 @@ class SGD():
         with AsyncOP():
             for param in self.params:
                 param.asyncsgd(self.lr)
+
+
+cdef class MomentumWrap():
+    cdef MomentumWrapper* wrapper
+
+    def __cinit__(self, PyTensor param, float lr, float beta):
+        self.wrapper = new MomentumWrapper(param._tensor[0], lr, beta)
+
+    def asyncstep(self):
+        self.wrapper.step(True)
+
+    def syncstep(self):
+        self.wrapper.step(False)
+
+
+class Momentum():
+    def __init__(self, params, float lr=0.01, float beta=0.8):
+        # Initialize vector and save learning parameters
+        self.lr = lr
+        self.beta = beta
+        self.optimizableParams = list()
+        self.paramCount = 0
+
+        if isinstance(params, PyTensor):
+            self.optimizableParams.append(MomentumWrap(params, lr, beta))
+            self.paramCount += 1
+
+        elif type(params) in {list, tuple}:
+            for param in params:
+                if isinstance(param, PyTensor):
+                    self.optimizableParams.append(MomentumWrap(param, lr, beta))
+                    self.paramCount += 1
+
+                else:
+                    raise TypeError("Each param must be of type <PyTensor>")
+
+        else:
+            raise TypeError("Params must be PyTensor or list of PyTensors")
+
+    def __dealloc__(self):
+        for i in range(self.paramCount):
+            del self.optimizableParams[i]
+
+    def syncstep(self):
+        for i in range(self.paramCount):
+            self.optimizableParams[i].syncstep()
+
+    def asyncstep(self):
+        with AsyncOP():
+            for i in range(self.paramCount):
+                self.optimizableParams[i].asyncstep()
 
 
 class AsyncOP():
