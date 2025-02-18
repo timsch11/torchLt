@@ -29,6 +29,20 @@ cdef extern from "optimization\MomentumWrapper.h":
         void step(bool asynchronous)
 
 
+# Import from RMSProp optimizer
+cdef extern from "optimization\RMSPropWrapper.h":
+    cdef cppclass RMSPropWrapper:
+        RMSPropWrapper(Tensor &tensor, float lr, float alpha, float eps)
+        void step(bool asynchronous)
+
+
+# Import from Adam optimizer
+cdef extern from "optimization\AdamWrapper.h":
+    cdef cppclass AdamWrapper:
+        AdamWrapper(Tensor &tensor, float lr, float alpha, float momentum, float eps)
+        void step(bool asynchronous)
+
+
 # Import from Tensor library
 cdef extern from "Tensor.h":
     cdef cppclass Tensor:
@@ -822,7 +836,7 @@ cdef class MomentumWrap():
 
 
 class Momentum():
-    def __init__(self, params, float lr=0.01, float beta=0.8):
+    def __init__(self, params, float lr=0.01, float beta=0.9):
         # Initialize vector and save learning parameters
         self.lr = lr
         self.beta = beta
@@ -837,6 +851,113 @@ class Momentum():
             for param in params:
                 if isinstance(param, PyTensor):
                     self.optimizableParams.append(MomentumWrap(param, lr, beta))
+                    self.paramCount += 1
+
+                else:
+                    raise TypeError("Each param must be of type <PyTensor>")
+
+        else:
+            raise TypeError("Params must be PyTensor or list of PyTensors")
+
+    def __dealloc__(self):
+        for i in range(self.paramCount):
+            del self.optimizableParams[i]
+
+    def syncstep(self):
+        for i in range(self.paramCount):
+            self.optimizableParams[i].syncstep()
+
+    def asyncstep(self):
+        with AsyncOP():
+            for i in range(self.paramCount):
+                self.optimizableParams[i].asyncstep()
+
+
+cdef class RMSPropWrap():
+    cdef RMSPropWrapper* wrapper
+
+    def __cinit__(self, PyTensor param, float lr, float alpha, float eps):
+        self.wrapper = new RMSPropWrapper(param._tensor[0], lr, alpha, eps)
+
+    def __dealloc__(self):
+        del self.wrapper
+
+    def asyncstep(self):
+        self.wrapper.step(True)
+
+    def syncstep(self):
+        self.wrapper.step(False)
+
+
+class RMSProp():
+    def __init__(self, params, float lr=0.01, float alpha=0.9, float eps = 0.00000001):
+        # Initialize vector and save learning parameters
+        self.lr = lr
+        self.beta = alpha
+        self.eps = eps
+        self.optimizableParams = list()
+        self.paramCount = 0
+
+        if isinstance(params, PyTensor):
+            self.optimizableParams.append(RMSPropWrap(params, lr, alpha, eps))
+            self.paramCount += 1
+
+        elif type(params) in {list, tuple}:
+            for param in params:
+                if isinstance(param, PyTensor):
+                    self.optimizableParams.append(RMSPropWrap(param, lr, alpha, eps))
+                    self.paramCount += 1
+
+                else:
+                    raise TypeError("Each param must be of type <PyTensor>")
+
+        else:
+            raise TypeError("Params must be PyTensor or list of PyTensors")
+
+    def __dealloc__(self):
+        for i in range(self.paramCount):
+            del self.optimizableParams[i]
+
+    def syncstep(self):
+        for i in range(self.paramCount):
+            self.optimizableParams[i].syncstep()
+
+    def asyncstep(self):
+        with AsyncOP():
+            for i in range(self.paramCount):
+                self.optimizableParams[i].asyncstep()
+
+    
+cdef class AdamWrap():
+    cdef AdamWrapper* wrapper
+
+    def __cinit__(self, PyTensor param, float lr, float alpha, float momentum, float eps):
+        self.wrapper = new AdamWrapper(param._tensor[0], lr, alpha, momentum, eps)
+
+    def __dealloc__(self):
+        del self.wrapper
+
+    def asyncstep(self):
+        self.wrapper.step(True)
+
+    def syncstep(self):
+        self.wrapper.step(False)
+
+
+class Adam():
+    def __init__(self, params, float lr=0.01, float alpha=0.9, float momentum=0.9, float eps = 0.00000001):
+        # Initialize list and save learning parameters
+        self.optimizableParams = list()
+        self.paramCount = 0
+
+        if isinstance(params, PyTensor):
+            self.optimizableParams.append(AdamWrap(params, lr, alpha, momentum, eps))
+            self.paramCount += 1
+
+        elif type(params) in {list, tuple}:
+            for param in params:
+                if isinstance(param, PyTensor):
+                    self.optimizableParams.append(AdamWrap(param, lr, alpha, momentum, eps))
                     self.paramCount += 1
 
                 else:

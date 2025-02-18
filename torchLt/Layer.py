@@ -2,9 +2,7 @@ from torchLt import PyTensor
 
 
 class Linear:
-
-    def __init__(self, neurons_in: int, neurons_out: int, xavierInit: bool = True, kaimingHeInit: bool = False):
-        """
+    """
         A linear (fully connected) layer for a neural network.
         Args:
             neurons_in (int): The number of input neurons.
@@ -14,6 +12,10 @@ class Linear:
         Raises:
             ValueError: If both xavierInit and kaimingHeInit are set to True.
             ValueError: If neither xavierInit nor kaimingHeInit are set to True.
+    """
+    def __init__(self, neurons_in: int, neurons_out: int, xavierInit: bool = True, kaimingHeInit: bool = False):
+        """
+        Initialize a linear layer.
         """
         pass
 
@@ -175,7 +177,7 @@ class Tanh():
 
 
 class Softmax():
-
+    
     """
     A class representing the Softmax activation function.
     Methods:
