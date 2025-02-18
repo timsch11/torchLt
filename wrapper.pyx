@@ -686,6 +686,10 @@ class Sequential:
                 c += tensor.getSize()
 
         return c
+
+    def __dealloc__(self):
+        for i in range(len(self.layers)):
+            del self.layers[i]
     
     def __call__(self, X: PyTensor) -> PyTensor:
         if not isinstance(X, PyTensor):
@@ -712,6 +716,10 @@ class Linear:
     def forward(self, X: PyTensor) -> PyTensor:
         return X.sfpass(self.weights, self.bias)  # sfpass is generally faster and more memory efficient sthan a manual forward pass
         # return (self.weights @ X) + self.bias
+
+    def __dealloc__(self):
+        del self.weights
+        del self.bias
     
     def __call__(self, X: PyTensor) -> PyTensor:
         if not isinstance(X, PyTensor):
