@@ -945,7 +945,7 @@ cdef class AdamWrap():
 
 
 class Adam():
-    def __init__(self, params, float lr=0.01, float alpha=0.9, float momentum=0.9, float eps = 0.00000001):
+    def __init__(self, params, float lr=0.001, float alpha=0.99, float momentum=0.9, float eps = 0.00000001):
         # Initialize list and save learning parameters
         self.optimizableParams = list()
         self.paramCount = 0

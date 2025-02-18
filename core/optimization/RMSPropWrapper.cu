@@ -27,7 +27,6 @@ void RMSPropWrapper::step(bool async) {
 }
 
 RMSPropWrapper::~RMSPropWrapper() {
-    printf("deleting...");
     if (this->d_pastSquaredGradients) {
         cudaFree(this->d_pastSquaredGradients);
     }

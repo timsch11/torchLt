@@ -36,7 +36,6 @@ void AdamWrapper::step(bool async) {
 }
 
 AdamWrapper::~AdamWrapper() {
-    printf("deleting...");
     
     // free Momentum collector
     if (this->d_pastGradients) {

@@ -27,7 +27,6 @@ void MomentumWrapper::step(bool async) {
 }
 
 MomentumWrapper::~MomentumWrapper() {
-    printf("deleting...");
     if (this->d_pastGradients) {
         cudaFree(this->d_pastGradients);
     }
