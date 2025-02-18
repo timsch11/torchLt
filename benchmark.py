@@ -20,16 +20,17 @@ HIDDENL1 = 100000
 HIDDENL2 = 1000
 OUTPUTL = 1
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 torchLt_model = torchLt.Model.Sequential(torchLt.Layer.Linear(INPUTL, HIDDENL1), torchLt.Layer.Tanh(), torchLt.Layer.Linear(HIDDENL1, HIDDENL2), torchLt.Layer.Tanh(), torchLt.Layer.Linear(HIDDENL2, OUTPUTL))
-pytorch_model = torch.nn.Sequential(torch.nn.Linear(INPUTL, HIDDENL1), torch.nn.Tanh(), torch.nn.Linear(HIDDENL1, HIDDENL2), torch.nn.Tanh(), torch.nn.Linear(HIDDENL2, OUTPUTL))
+pytorch_model = torch.nn.Sequential(torch.nn.Linear(INPUTL, HIDDENL1), torch.nn.Tanh(), torch.nn.Linear(HIDDENL1, HIDDENL2), torch.nn.Tanh(), torch.nn.Linear(HIDDENL2, OUTPUTL)).to(device)
 
 
-torchLt_optimizer = torchLt.Optimizer.Adam(torchLt_model.getParams())
-pytorch_optimizer = torch.optim.Adam(pytorch_model.parameters())
+#torchLt_optimizer = torchLt.Optimizer.Adam(torchLt_model.getParams())
+#pytorch_optimizer = torch.optim.Adam(pytorch_model.parameters())
 
-#torchLt_optimizer = torchLt.Optimizer.RMSProp(torchLt_model.getParams())
-#pytorch_optimizer = torch.optim.RMSprop(pytorch_model.parameters())
+torchLt_optimizer = torchLt.Optimizer.RMSProp(torchLt_model.getParams())
+pytorch_optimizer = torch.optim.RMSprop(pytorch_model.parameters())
 
 #torchLt_optimizer = torchLt.Optimizer.Momentum(torchLt_model.getParams())
 #pytorch_optimizer = torch.optim.SGD(pytorch_model.parameters(), momentum=0.9)
@@ -98,15 +99,10 @@ if __name__ == '__main__':
     # PyTorch implementation
     print("\n--- PyTorch Training ---")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    pytorch_model = pytorch_model.to(device)
-
     X_torch = torch.FloatTensor(X).to(device)
     y_torch = torch.FloatTensor(y).to(device)
 
     criterion = torch.nn.MSELoss()
-    optimizer = torch.optim.Adam(pytorch_model.parameters())
     
     # Train PyTorch model
     t2 = time.time()
