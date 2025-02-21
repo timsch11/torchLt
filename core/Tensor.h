@@ -61,17 +61,7 @@ class Tensor {
         Tensor* d_funcArg2;
         Tensor* d_funcArg3; // if set: 1. weight 2. input 3. bias
 
-        // streams for synchronized/concurrent execution
-
-        cudaStream_t* graphStream;  // used for operations inside of the computational graph that require synchronization
-                                   // all nodes of a computational graph share the same graphStream
-        cudaStream_t nodeStream;   // used for operations inside of the computational graph that do not require synchronization
-                                   // every Tensor has a unique nodeStream
-
-        // size of the computational graph lower than this node (including this node)
-
-        unsigned int lowerGraphSize;
-
+        // garbage collector 
         int* refCount;
 
         // shapes of function arguments

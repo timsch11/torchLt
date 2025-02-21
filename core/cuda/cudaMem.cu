@@ -12,9 +12,6 @@ float* reserveMemoryOnDevice(unsigned int size) {// declare pointer
         std::cout << std::string(cudaGetErrorString(allocStatus));
         return nullptr;
     }
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     
     return memoryAlloc;
 }
