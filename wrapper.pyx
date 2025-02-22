@@ -62,7 +62,6 @@ cdef extern from "Tensor.h":
         bool getTrackGradient() const
         bool isLeaf() const
         bool isGradientSet() const
-        unsigned int getLowerGraphSize() const
         
         # Math operations
         Tensor* add(Tensor& other)
@@ -283,9 +282,6 @@ cdef class PyTensor:
     def isGradientSet(self):
         return self._tensor.isGradientSet()
 
-    def getLowerGraphSize(self):
-        return self._tensor.getLowerGraphSize()
-
     def getReferenceCount(self):
         return self._tensor.getReferenceCount()
 
@@ -357,12 +353,7 @@ cdef class PyTensor:
     """math operations"""
 
     def add(self, PyTensor other):
-        # check for correct type
-        if type(other) in {int, float}:
-            return self.add(PyTensor.constants(shape=(self.getShapeX(), self.getShapeY()), constant=other))
-        if not isinstance(other, PyTensor):
-            raise TypeError("operation is only defined for other Tensors")
-
+        # check for correct shape
         if not self.sameShape(other):
             raise ValueError("Incompatible shapes: Shapes must match for addition to work")
 
@@ -375,10 +366,7 @@ cdef class PyTensor:
         return result
 
     def sub(self, PyTensor other):
-        # check for correct type
-        if not isinstance(other, PyTensor):
-            raise TypeError("operation is only defined for other Tensors")
-
+        # check for correct shape
         if not self.sameShape(other):
             raise ValueError("Incompatible shapes: Shapes must match for subtraction to work")
 
@@ -391,10 +379,7 @@ cdef class PyTensor:
         return result
 
     def hadamard(self, PyTensor other):
-        # check for correct type
-        if not isinstance(other, PyTensor):
-            raise TypeError("operation is only defined for other Tensors")
-
+        # check for correct shape
         if not self.sameShape(other):
             raise ValueError("Incompatible shapes: Shapes must match for hadamard product to work")
 
@@ -407,13 +392,7 @@ cdef class PyTensor:
         return result
 
     def matmul(self, PyTensor other):
-        # check for correct type
-        if not isinstance(other, PyTensor):
-            raise TypeError("operation is only defined for other Tensors")
-
-        #if self._tensor.getShapeY() != other._tensor.getShapeX():
-        #    raise ValueError("Incompatible shapes: #col of A must match #row of B")
-
+        # shape checking is done on c++ level
         # create empty Tensor wrapper
         result = PyTensor()
 
@@ -423,10 +402,7 @@ cdef class PyTensor:
         return result
 
     def dot(self, PyTensor other):
-        # check for correct type
-        if not isinstance(other, PyTensor):
-            raise TypeError("operation is only defined for other Tensors")
-
+        # check for correct shape
         if not self.sameShape(other):
             raise ValueError("Incompatible shapes: Shapes must match for dot product to work")
         
@@ -443,10 +419,6 @@ cdef class PyTensor:
 
     """Neural Network"""
     def sfpass(self, PyTensor weight, PyTensor bias):
-        # check for correct type
-        if not isinstance(weight, PyTensor) or not isinstance(bias, PyTensor):
-            raise TypeError("operation is only defined for other Tensors")
-
         # create empty Tensor wrapper
         result = PyTensor()
 
@@ -502,10 +474,7 @@ cdef class PyTensor:
     """loss functions"""
 
     def l2(self, PyTensor other):
-        # check for correct type
-        if not isinstance(other, PyTensor):
-            raise TypeError("operation is only defined for other Tensors")
-
+        # check for correct shape
         if not self.sameShape(other):
             raise ValueError("Incompatible shapes: Shapes must match for l2 loss")
         
@@ -548,7 +517,7 @@ cdef class PyTensor:
 
     """operator overloading"""
     
-    def __add__(self, other):
+    def __add__(self, PyTensor other):
         return self.add(other)
 
     def __sub__(self, PyTensor other):
@@ -626,7 +595,7 @@ cdef class PyTensor:
 
     """Optimization"""
     
-    def sgd(self, lr: float):
+    def sgd(self, float lr):
         self._tensor.sgd(lr)
 
     """init cuda"""
@@ -638,15 +607,9 @@ cdef class PyTensor:
     """static utils"""
 
     @staticmethod
-    def constants(shape: tuple, constant: float):
-        if not type(shape) in {tuple, list}:
-            raise TypeError("Error: Shape must be of type tuple or list")
-
-        elif len(shape) != 2:
+    def constants(tuple shape, float constant):
+        if len(shape) != 2:
             raise TypeError("Error: Shape must have two values")
-
-        if not type(constant) in {float, int}:
-            raise TypeError("Error: Constant must be of type float or integer")
 
         # create empty Tensor wrapper
         result = PyTensor()
@@ -673,7 +636,7 @@ class Sequential:
 
         return params
     
-    def forward(self, X: PyTensor) -> PyTensor:
+    def forward(self, PyTensor X) -> PyTensor:
         for layer in self.layers:
             X = layer.forward(X)
 
@@ -691,15 +654,12 @@ class Sequential:
         for i in range(len(self.layers)):
             del self.layers[i]
     
-    def __call__(self, X: PyTensor) -> PyTensor:
-        if not isinstance(X, PyTensor):
-            raise TypeError("Argument must be of type <PyTensor>")
-        
+    def __call__(self, PyTensor X) -> PyTensor:
         return self.forward(X)
 
 
 class Linear:
-    def __init__(self, neurons_in: int, neurons_out: int, xavierInit: bool = True, kaimingHeInit: bool = False):
+    def __init__(self, int neurons_in, int neurons_out, bool xavierInit = True, bool kaimingHeInit = False):
         if xavierInit and kaimingHeInit:
             raise ValueError("cannot initalize with both xavier and kaimingHe")
         
@@ -713,7 +673,7 @@ class Linear:
     def getParams(self) -> list:
         return [self.weights, self.bias]
     
-    def forward(self, X: PyTensor) -> PyTensor:
+    def forward(self, PyTensor X) -> PyTensor:
         return X.sfpass(self.weights, self.bias)  # sfpass is generally faster and more memory efficient sthan a manual forward pass
         # return (self.weights @ X) + self.bias
 
@@ -721,10 +681,7 @@ class Linear:
         del self.weights
         del self.bias
     
-    def __call__(self, X: PyTensor) -> PyTensor:
-        if not isinstance(X, PyTensor):
-            raise TypeError("Argument must be of type <PyTensor>")
-        
+    def __call__(self, PyTensor X) -> PyTensor:
         return self.forward(X)
 
 
@@ -735,13 +692,10 @@ class Relu():
     def getParams(self) -> list:
         return []
     
-    def forward(self, X: PyTensor) -> PyTensor:
+    def forward(self, PyTensor X) -> PyTensor:
         return X.tanh()
     
-    def __call__(self, X: PyTensor) -> PyTensor:
-        if not isinstance(X, PyTensor):
-            raise TypeError("Argument must be of type <PyTensor>")
-        
+    def __call__(self, PyTensor X) -> PyTensor:
         return self.forward(X)
 
 
@@ -752,13 +706,10 @@ class Sigmoid():
     def getParams(self) -> list:
         return []
     
-    def forward(self, X: PyTensor) -> PyTensor:
+    def forward(self, PyTensor X) -> PyTensor:
         return X.tanh()
     
-    def __call__(self, X: PyTensor) -> PyTensor:
-        if not isinstance(X, PyTensor):
-            raise TypeError("Argument must be of type <PyTensor>")
-        
+    def __call__(self, PyTensor X) -> PyTensor:
         return self.forward(X)
 
 class Tanh():
@@ -768,13 +719,10 @@ class Tanh():
     def getParams(self) -> list:
         return []
     
-    def forward(self, X: PyTensor) -> PyTensor:
+    def forward(self, PyTensor X) -> PyTensor:
         return X.tanh()
     
-    def __call__(self, X: PyTensor) -> PyTensor:
-        if not isinstance(X, PyTensor):
-            raise TypeError("Argument must be of type <PyTensor>")
-        
+    def __call__(self, PyTensor X) -> PyTensor:
         return self.forward(X)
 
 class Softmax():
@@ -784,18 +732,15 @@ class Softmax():
     def getParams(self) -> list:
         return []
     
-    def forward(self, X: PyTensor) -> PyTensor:
+    def forward(self, PyTensor X) -> PyTensor:
         return X.softmax()
     
-    def __call__(self, X: PyTensor) -> PyTensor:
-        if not isinstance(X, PyTensor):
-            raise TypeError("Argument must be of type <PyTensor>")
-        
+    def __call__(self, PyTensor X) -> PyTensor:
         return self.forward(X)
 
 
 class SGD():
-    def __init__(self, params: list[PyTensor], lr=0.01):
+    def __init__(self, list[PyTensor] params, float lr=0.01):
 
         # initalize params
         self.params = []
@@ -844,7 +789,7 @@ cdef class MomentumWrap():
 
 
 class Momentum():
-    def __init__(self, params, float lr=0.01, float beta=0.9):
+    def __init__(self, list[PyTensor] params, float lr=0.01, float beta=0.9):
         # Initialize vector and save learning parameters
         self.lr = lr
         self.beta = beta
@@ -898,7 +843,7 @@ cdef class RMSPropWrap():
 
 
 class RMSProp():
-    def __init__(self, params, float lr=0.01, float alpha=0.9, float eps = 0.00000001):
+    def __init__(self, list[PyTensor] params, float lr=0.01, float alpha=0.9, float eps=0.00000001):
         # Initialize vector and save learning parameters
         self.lr = lr
         self.beta = alpha
@@ -953,7 +898,7 @@ cdef class AdamWrap():
 
 
 class Adam():
-    def __init__(self, params, float lr=0.001, float alpha=0.99, float momentum=0.9, float eps = 0.00000001):
+    def __init__(self, list[PyTensor] params, float lr=0.001, float alpha=0.99, float momentum=0.9, float eps=0.00000001):
         # Initialize list and save learning parameters
         self.optimizableParams = list()
         self.paramCount = 0

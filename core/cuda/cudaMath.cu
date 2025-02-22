@@ -24,9 +24,6 @@ cudaError_t tensoradd(float* d_targetMemorySpace, float* d_tensor1, unsigned int
     // check for errors
     cudaError_t err = cudaGetLastError();
 
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     return err;
 }
 
@@ -50,9 +47,6 @@ cudaError_t vecsub(float* d_targetMemorySpace, float* d_vector1, unsigned int ve
     // check for errors
     cudaError_t err = cudaGetLastError();
 
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     return err;
 }
 
@@ -69,9 +63,6 @@ cudaError_t scaletensor(float* d_targetMemorySpace, float* d_tensor, unsigned in
 
     // check for errors
     cudaError_t err = cudaGetLastError();
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return err;
 }
@@ -94,9 +85,6 @@ cudaError_t hadamard(float* d_targetMemorySpace, float* d_tensor1, float* d_tens
 
     // check for errors
     cudaError_t err = cudaGetLastError();
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // return error
     return err;
@@ -290,9 +278,6 @@ float* gemmA(cublasLtHandle_t* handle, const float* d_A, const float* d_B, int m
         nullptr,
         0,
         0));
-
-    // wait for completion
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // Cleanup
     cublasLtMatrixLayoutDestroy(matC);

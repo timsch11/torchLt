@@ -1,7 +1,8 @@
+// Memory management utilities for CUDA operations
 #include "cudaMem.cuh"
 
-
-float* reserveMemoryOnDevice(unsigned int size) {// declare pointer
+// Helper function to allocate device memory with padding for alignment
+float* reserveMemoryOnDevice(unsigned int size) {
     float* memoryAlloc = nullptr;
 
     // reserve actual space in memory, add some padding for thread efficiency
@@ -16,6 +17,7 @@ float* reserveMemoryOnDevice(unsigned int size) {// declare pointer
     return memoryAlloc;
 }
 
+// Initialize device memory with zeros
 __global__ void __initMemCell(float* d_memorySection, float value) {
     d_memorySection[blockIdx.x * blockDim.x + threadIdx.x] = value;
 }
@@ -45,9 +47,6 @@ float* zeros(unsigned int size) {
         return nullptr;
     }
 
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     return d_memoryAllocation;
 }
 
@@ -74,9 +73,6 @@ float* constants(unsigned int size, float constant) {
         return nullptr;
     }
 
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     return d_memoryAllocation;
 }
 
@@ -89,9 +85,6 @@ cudaError_t constants(float* d_value, unsigned int size, float constant) {
 
     // check for errors
     cudaError_t err = cudaGetLastError();
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return err;
 }
@@ -122,12 +115,9 @@ cudaError_t cudaMemDup(float* d_source, float* d_destination, unsigned int rows,
         __memDupTranspose<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination, rows, cols);
         err = cudaGetLastError();
     } else {
-        __memDup<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination);
-        err = cudaGetLastError();
+        err = cudaMemcpyAsync(d_destination, d_source, rows * cols, cudaMemcpyDeviceToDevice, 0);
+        //__memDup<<<blockThreadAllocation.first, blockThreadAllocation.second>>>(d_source, d_destination);
     }
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return err;
 }
@@ -148,9 +138,6 @@ cudaError_t cudaMemDupScaled(float* d_source, float* d_destination, float* scala
     // check for errors
     cudaError_t err = cudaGetLastError();
 
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     return err;
 }
 
@@ -169,9 +156,6 @@ cudaError_t cudaMemDupScaled(float* d_source, float* d_destination, float scalar
 
     // check for errors
     cudaError_t err = cudaGetLastError();
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return err;
 }
@@ -202,9 +186,6 @@ cudaError_t weight_init(float* d_targetMemorySpace, unsigned int size, float sca
 
     // check for errors
     cudaError_t err = cudaGetLastError();
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     
     return err;
 }

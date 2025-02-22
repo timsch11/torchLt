@@ -1,6 +1,7 @@
+// CUDA implementations for computing derivatives 
 #include "cudaDif.cuh"
 
-
+// ReLU gradient computation using element-wise operations
 __global__ void __reluGrad(float* d_targetMemorySpace, float* d_vector, float* d_droot_dthis) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (d_vector[i] > 0) {
@@ -106,6 +107,7 @@ cudaError_t tanhGrad(float* d_targetMemorySpace, float* d_tensor, float* d_droot
     return err;
 }
 
+// Loss function gradient computations
 __global__ void __l2LossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_actual, float* d_droot_dthis) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 

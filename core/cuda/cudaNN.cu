@@ -1,9 +1,7 @@
+// Core CUDA implementation of neural network operations
 #include "cudaNN.cuh"
 
-
-// ACTIVATION FUNCTIONS
-
-
+// Activation function implementations using CUDA kernels
 __global__ void __relu(float* d_targetMemorySpace, float* vector) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (vector[i] > 0) {
@@ -18,9 +16,6 @@ cudaError_t relu(float* d_targetMemorySpace, float* d_vector, unsigned int size)
     __relu<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_vector);
 
     cudaError_t err = cudaGetLastError();
-    
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return err;
 }
@@ -55,9 +50,6 @@ cudaError_t sigmoid(float* d_targetMemorySpace, float* d_tensor, unsigned int si
     __sigmoid<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor);
 
     cudaError_t err = cudaGetLastError();
-    
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return err;
 }
@@ -95,9 +87,6 @@ cudaError_t tanh(float* d_targetMemorySpace, float* d_tensor, unsigned int size)
     __tanh<<<blocksThreads.first, blocksThreads.second>>>(d_targetMemorySpace, d_tensor);
 
     cudaError_t err = cudaGetLastError();
-    
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return err;
 }
@@ -138,6 +127,7 @@ cudaError_t xavier(float* d_targetMemorySpace, unsigned int in_features, unsigne
     return weight_init(d_targetMemorySpace, in_features * out_features, scaling_factor, seed);
 }
 
+// Forward pass for fully connected layers
 float* forwardPass(cublasLtHandle_t* handle, const float* d_weight, const float* d_input, const float* d_bias, int m, int n, int k, cublasOperation_t opA, cublasOperation_t opB) {
 
     // Allocate device memory
@@ -221,9 +211,6 @@ float* forwardPass(cublasLtHandle_t* handle, const float* d_weight, const float*
         nullptr,
         0,
         0));
-
-    // wait for completion
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // Cleanup
     cublasLtMatrixLayoutDestroy(matW);
@@ -516,10 +503,7 @@ float* l2LossAlloc(float* d_predicted, float* d_actual, std::pair<unsigned int, 
     std::pair<unsigned int, unsigned int> blocksThreads = computeBlockThreadAllocation(shape_predicted.first);
 
     // calculate element-wise (predicted[i]-actual[i])^2 and store individual results (not summed up yet) in calcMem
-    __elementWiseL2Loss<<<blocksThreads.first, blocksThreads.second>>>(d_calcMem, d_predicted, d_actual);
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    __elementWiseL2Loss<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_calcMem, d_predicted, d_actual);
 
     // error checking/handling
     CHECK_CUDA_ERROR(cudaGetLastError());
@@ -536,19 +520,13 @@ float* l2LossAlloc(float* d_predicted, float* d_actual, std::pair<unsigned int, 
     // init memory
     cudaMemset(d_result, 0.0f, sizeof(float));
 
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     // hyperparamters, every thread should handle k elements
     unsigned int k = 10;
     unsigned int blockSize = 32;
     unsigned int blocks = (shape_predicted.first + (k * blockSize - 1)) / (k * blockSize);
 
     // add everything up
-    addUp<<<blocks, blockSize>>>(d_result, d_calcMem, k, shape_predicted.first);
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    addUp<<<blocks, blockSize, 0, 0>>>(d_result, d_calcMem, k, shape_predicted.first);
 
     // error checking/handling
     CHECK_CUDA_ERROR(cudaGetLastError());
@@ -634,9 +612,6 @@ float* softmaxAlloc(float* d_vector, unsigned int vectorSize) {
     __softmax_normalize<<<blocksThreads.first, blocksThreads.second, 0, 0>>>(d_result, vectorSize);
 
     cudaError_t err = cudaGetLastError();
-    
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     if (err != cudaSuccess) {
         printf("Error when performing softmax");
@@ -743,7 +718,6 @@ float* categoricalCrossEntropyLossAlloc(float* d_predicted, float* d_actual, uns
     __categoricalCrossEntropyLoss_final<<<blocksThreads.first, blocksThreads.second, sharedMemorySize, 0>>>(d_result, d_calcMem, d_actual, vectorSize);
 
     cudaError_t err = cudaGetLastError();
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     if (err != cudaSuccess) {
         printf("Error when performing categorical cross entropy loss: %s\n", cudaGetErrorString(err));

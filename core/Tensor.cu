@@ -1,13 +1,24 @@
 #include "Tensor.h"
 
 
-cublasHandle_t* handle = nullptr;
-cublasLtHandle_t* handleLt = nullptr;
-unsigned int activeTensors = 0;
+// ##########################
+// initalize global variables
+// ##########################
 
+cublasHandle_t* handle = nullptr;       // cublas handle
+cublasLtHandle_t* handleLt = nullptr;   // cublasLt handle:
+
+unsigned int activeTensors = 0;         // Tensor counter (used to keep track of when to initalize a new cublas handle and when to delete)
+
+
+// ###########################################
+// cublas/cublasLt handle lifecycle management
+// ###########################################
+
+// ### Creation
 /**
  * @brief creates a global cuBlas handle if it does not already exist
- * @note throws error if creation failed
+ * @return returns either CUBLAS_STATUS_SUCCESS or error from initalization of either cublas or cublaslt handle creation
  * 
  */
 cublasStatus_t init_cuBlas() {
@@ -54,6 +65,7 @@ cublasStatus_t init_cuBlas() {
     return CUBLAS_STATUS_SUCCESS;
 }
 
+// ### Deletion
 /**
  * @brief destroys the global cuBlas handle and frees associated memory
  * @note to run a cuBlas function you need to first call init_cuBlas again
@@ -78,6 +90,11 @@ void destroy_cuBlas() {
     }
 }
 
+
+// ###################
+// Tensor constructors
+// ###################
+
 // initalize leaf with values from a custom function
 Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, int seed, cudaError_t(*initalization_function)(float*, unsigned int, unsigned int, int))
 : Tensor(nullptr, _shape, _track_gradient) {
@@ -88,6 +105,22 @@ Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradien
 
     // fill with values from initalization function
     this->handleError(initalization_function(this->d_value, _shape.second, _shape.first, seed), "Error: Tensor initalization with values from custom function failed");
+
+    // synchronize before continuing with host code
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+}
+
+// initalize with a constant value (no gradient tracking of previous operation)
+Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, float constant) 
+: Tensor(nullptr, _shape, _track_gradient) {
+    unsigned int size = _shape.first * _shape.second;
+    this->d_value = reserveMemoryOnDevice(size);
+
+    // error check
+    this->handleError(this->d_value, "Error: Memory allocation failed");
+
+    // fill with constant
+    this->handleError(constants(this->d_value, size, constant), "Error: Tensor initalization with constant values failed");
 }
 
 // initalize leaf
@@ -130,7 +163,7 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
     }
 }
 
-// initalize result of single tensor operation
+// initalize result of single tensor operation (one arg)
 Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1)
 : Tensor(_d_value, _shape, _track_gradient) {
     
@@ -141,39 +174,32 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
     this->leaf = false;
 }
 
-// initalize result of dual tensor operation
+// initalize result of dual tensor operation (two args)
 Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1, Tensor* _d_funcArg2, std::pair<unsigned int, unsigned int> _shapeFuncArg2)
 : Tensor(_d_value, _shape, _track_gradient, _gradFunction, _d_funcArg1, _shapeFuncArg1) {
     this->d_funcArg2 = _d_funcArg2;
     this->shapeFuncArg2 = _shapeFuncArg2;
 }
 
-Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, float constant) 
-: Tensor(nullptr, _shape, _track_gradient) {
-    unsigned int size = _shape.first * _shape.second;
-    this->d_value = reserveMemoryOnDevice(size);
-
-    // error check
-    this->handleError(this->d_value, "Error: Memory allocation failed");
-
-    // fill with constant
-    this->handleError(constants(this->d_value, size, constant), "Error: Tensor initalization with constant values failed");
-}
-
-// initalize result of triple tensor operation (=sfpass)
+// initalize result of triple tensor operation (three args =sfpass)
 Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1, Tensor* _d_funcArg2, std::pair<unsigned int, unsigned int> _shapeFuncArg2, Tensor* _d_funcArg3, std::pair<unsigned int, unsigned int> _shapeFuncArg3)
 : Tensor(_d_value, _shape, _track_gradient, _gradFunction, _d_funcArg1, _shapeFuncArg1, _d_funcArg2, _shapeFuncArg2) {
     this->d_funcArg3 = _d_funcArg3;
     this->shapeFuncArg3 = _shapeFuncArg3;
 }
 
-// basic functions
+// ##############
+// Getter methods
+// ##############
 
 float* Tensor::getValue() const {
     return this->d_value;
 }
 
 float* Tensor::getValueCPU() const {
+    // synchronize before accessing data
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // validate device pointer
     if (this->getValue() == nullptr) {
         this->handleError(nullptr, "Error: Device pointer is null");
@@ -196,6 +222,9 @@ float* Tensor::getGradient() const {
 }
 
 float* Tensor::getGradientCPU() const {
+    // synchronize before accessing data
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     // initalize float array on host 
     float* host_gradient = (float*) malloc(this->getSize() * sizeof(float));
 
@@ -272,13 +301,9 @@ void Tensor::changeGradientSet(bool _gradientSet) {
     this->gradientSet = _gradientSet;
 }
 
-void Tensor::addReference() {
-    (*refCount)++;
-}
-
-int Tensor::getReferenceCount() {
-    return *(this->refCount);
-}
+// ###############################
+// Custom garbage collection utils
+// ###############################
 
 void Tensor::removeReference() {
     (*refCount)--;
@@ -287,7 +312,17 @@ void Tensor::removeReference() {
     }
 }
 
-// row/column access and slicing
+void Tensor::addReference() {
+    (*refCount)++;
+}
+
+int Tensor::getReferenceCount() {
+    return *(this->refCount);
+}
+
+// ###############################
+// row/column accesses and slicing
+// ###############################
 
 Tensor* Tensor::getRows(unsigned int fromRow, unsigned int toRow) {
     // check bounds
@@ -318,6 +353,9 @@ Tensor* Tensor::getRows(unsigned int fromRow, unsigned int toRow) {
 
     // calculate position
     unsigned int from = fromRow * this->getShapeY();
+
+    // synchronize before accessing data
+    //CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     // clone values
     cudaMemDup(this->getValue() + from, d_value_copy, resultShape.first, resultShape.second, false);
@@ -438,6 +476,10 @@ Tensor* Tensor::get(unsigned int fromRow, unsigned int toRow, unsigned int fromC
     return new Tensor(d_value_copy, resultShape, true);
 }
 
+// #######
+// Copying
+// #######
+
 Tensor* Tensor::deepcopy() {
     // cache size
     unsigned int size = this->getSize();
@@ -453,6 +495,10 @@ Tensor* Tensor::deepcopy() {
 
     return new Tensor(d_value_copy, this->getShape(), this->getTrackGradient());
 }
+
+// ###############
+// Backpropagation
+// ###############
 
 void Tensor::backward() {
     // skip if either gradient tracking is disabled or there are no preceding calculations
@@ -495,6 +541,10 @@ void Tensor::asyncbackpropsgd(float lr) {
     }
 }
 
+// ######################
+// Shape comparison utils
+// ######################
+
 bool Tensor::sameShape(Tensor other) const {
     // returns true if tensors are of same shape
     return (this->getShapeX() == other.getShapeX()) && (this->getShapeY() == other.getShapeY());
@@ -504,6 +554,10 @@ bool Tensor::matMulCompatible(Tensor other) const {
     // returns true if matrices are compatible for matmul
     return this->getShapeY() == other.getShapeX();
 }
+
+// #########################
+// Tensor level optimization
+// #########################
 
 void Tensor::sgd(float lr) {
     if (!this->isGradientSet() || this->getGradient() == nullptr) {
@@ -524,6 +578,10 @@ void Tensor::asyncsgd(float lr) {
 
     this->handleError(scaledSubtraction(this->getValue(), this->getValue(), this->getSize(), this->getGradient(), this->getSize(), lr, true), "Error: scaledSubtraction failed");
 }
+
+// ################################################
+// Addition (calculation, gradient and op overload)
+// ################################################
 
 /**
  * @brief Computes the gradient for the addition operation in a computational graph.
@@ -612,6 +670,10 @@ Tensor* Tensor::operator+(Tensor &other) {
     return this->add(other);
 }
 
+// ###################################################
+// Subtraction (calculation, gradient and op overload)
+// ###################################################
+
 /**
  * @brief Computes the gradient for the subtraction operation in a computational graph.
  *
@@ -675,6 +737,10 @@ Tensor* Tensor::sub(Tensor &other) {
 Tensor* Tensor::operator-(Tensor &other) {
     return this->sub(other);
 }
+
+// #############################################################
+// Matrix multiplication (calculation, gradient and op overload)
+// #############################################################
 
 /**
  * @brief Computes the gradient of a matrix multiplication (C = A * B) wrt to A and B
@@ -822,6 +888,10 @@ Tensor* Tensor::scale(float scalar) {
     return new Tensor(d_result, this->getShape(), true, scaleGradient, this, this->getShape());
 }*/
 
+// ###################################################
+// Dot product (calculation, gradient and op overload)
+// ###################################################
+
 /**
  * @brief Computes and stores the derivatives of the dot product operation
  * 
@@ -890,6 +960,10 @@ Tensor* Tensor::dot(Tensor &other) {
     return new Tensor(d_result, {1, 1}, true, dotGradient, this, this->getShape(), &other, other.getShape());
 }
 
+// ########################################################
+// Hadamard product (calculation, gradient and op overload)
+// ########################################################
+
 /**
  * @brief Computes and stores the derivatives of the hadamard product operation
  * 
@@ -955,7 +1029,9 @@ Tensor* Tensor::operator%(Tensor &other) {
     return hadamardProduct(other);
 }
 
-// Activation Functions
+// ###############################
+// ReLU (calculation and gradient)
+// ###############################
 
 /**
  * @brief Computes the gradient of the ReLU activation function for the given tensor.
@@ -1003,6 +1079,10 @@ Tensor* Tensor::relu() {
 
     return new Tensor(d_tensorValue, this->getShape(), true, reluGradient, this, this->getShape());
 }
+
+// ##################################
+// Sigmoid (calculation and gradient)
+// ##################################
 
 /**
  * @brief Computes the gradient of the sigmoid activation function for the given tensor.
@@ -1053,6 +1133,10 @@ Tensor* Tensor::sigmoid() {
     // return new tensor that has holds result of the sigmoid function as a value and corresponding shape and gradient function
     return new Tensor(d_sigmoidValue, this->getShape(), true, sigmoidGradient, this, this->getShape());
 }
+
+// ###############################
+// Tanh (calculation and gradient)
+// ###############################
 
 /**
  * @brief Computes the gradient of the tanh activation function for the given tensor.
@@ -1106,6 +1190,10 @@ Tensor* Tensor::tanh() {
     return new Tensor(d_tanhValue, this->getShape(), true, tanhGradient, this, this->getShape());
 }
 
+// ##################################
+// Softmax (calculation and gradient)
+// ##################################
+
 /**
  * @brief Computes the gradient of the softmax function for the given tensor.
  *
@@ -1157,7 +1245,9 @@ Tensor* Tensor::softmax() {
     return new Tensor(d_result, this->getShape(), true, softmaxGradient, this, this->getShape());
 }
 
-// LOSS FUNCTIONS
+// ##################################
+// L2 Loss (calculation and gradient)
+// ##################################
 
 /**
  * @brief Calculates the gradient for the L2 Loss operation applied to a tensor.
@@ -1217,6 +1307,7 @@ Tensor* Tensor::l2(Tensor &other) {
     return new Tensor(d_result, {1, 1}, true, l2Gradient, this, this->getShape(), &other, other.getShape());
 }
 
+// wrapper for backpropagation: allows backpropagation without calculating loss
 Tensor* Tensor::l2NoVal(Tensor &other) {
     // increment reference count of results args (dependencies)
     this->addReference();
@@ -1231,6 +1322,10 @@ Tensor* Tensor::l2NoVal(Tensor &other) {
     // return new Tensor
     return new Tensor(d_result, {1, 1}, true, l2Gradient, this, this->getShape(), &other, other.getShape());
 }
+
+// #########################################################
+// Categorical cross entropy Loss (calculation and gradient)
+// #########################################################
 
 /**
  * @brief Calculates the gradient for the categorical cross entropy Loss operation applied to a tensor.
@@ -1296,7 +1391,9 @@ Tensor* Tensor::categoricalCrossEntropy(Tensor &other) {
     return new Tensor(d_result, {1, 1}, true, crossEntropyLossGradient, this, this->getShape(), &other, other.getShape());
 }
 
-// Neural Network operations
+// ##########################################################
+// Optimized standard forward pass (calculation and gradient)
+// ##########################################################
 
 static void sfpassGradient(Tensor* currentTensor) {
     // cache tensors
@@ -1390,7 +1487,9 @@ Tensor* Tensor::sfpass(Tensor &weight, Tensor &bias) {
     return new Tensor(d_result, {m, n}, true, sfpassGradient, &weight, weight.getShape(), this, this->getShape(), &bias, bias.getShape());
 }
 
-// Matrix operations
+// ######################################
+// Transposing (calculation and gradient)
+// ######################################
 
 static void transposeGradient(Tensor* currentTensor) {
     /* thisGradient = transpose(currentTensorGradient) */
@@ -1441,7 +1540,9 @@ Tensor* Tensor::transpose() {
     return new Tensor(d_value, {this->getShapeY(), this->getShapeX()}, true, &transposeGradient, this, this->getShape());
 }
 
-// PRINTING
+// #############################
+// Printing (value and gradient)
+// #############################
 
 std::ostream& operator<<(std::ostream &s, const Tensor &tensor) {
 
@@ -1525,6 +1626,10 @@ void Tensor::printGradient() const {
     free(grad);
 }
 
+// ####################
+// Error handling utils
+// ####################
+
 void Tensor::handleError(cudaError_t err, std::string errorText) const {
     // only handle if error occured, otherwise do nothing
     if (err != cudaSuccess) {
@@ -1563,6 +1668,9 @@ void Tensor::handleError(std::string errorText) const {
 
 }
 
+// #############################################
+// Destructor and graph based garbage collection
+// #############################################
 
 Tensor::~Tensor() {
 

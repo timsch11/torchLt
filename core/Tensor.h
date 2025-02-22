@@ -322,12 +322,6 @@ class Tensor {
         std::pair<unsigned int, unsigned int> getShapeArg3() const;
 
         /**
-         * @brief Get pointer to CUDA stream associated with this tensor's computational graph
-         * @return Pointer to cudaStream_t stream used for asynchronous operations
-         */
-        cudaStream_t* getGraphStream() const;
-
-        /**
          * @brief Check if gradients should be tracked for this tensor
          * @return true if gradients are being tracked, false otherwise
          */
@@ -344,12 +338,6 @@ class Tensor {
          * @return true if gradient is set, false otherwise
          */
         bool isGradientSet() const;
-
-        /**
-         * @brief Get size of computational graph below this tensor
-         * @return Number of nodes in the subgraph where this tensor is root
-         */
-        unsigned int getLowerGraphSize() const;
 
         // SETTER
 
@@ -368,12 +356,6 @@ class Tensor {
          * @param _gradientSet Boolean indicating whether gradient is set
          */
         void changeGradientSet(bool _gradientSet);
-
-        /**
-         * @brief Sets the CUDA stream for gradient computation for this tensor and all preceding nodes in computation graph
-         * @param graphStream Pointer to the CUDA stream to be set
-         */
-        void setGraphStreamForSubgraph(cudaStream_t* graphStream);
 
         /**
          * @brief Performs backward pass gradient computation through the computational graph
