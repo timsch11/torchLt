@@ -26,11 +26,11 @@ torchLt_model = torchLt.Model.Sequential(torchLt.Layer.Linear(INPUTL, HIDDENL1),
 pytorch_model = torch.nn.Sequential(torch.nn.Linear(INPUTL, HIDDENL1), torch.nn.Tanh(), torch.nn.Linear(HIDDENL1, HIDDENL2), torch.nn.Tanh(), torch.nn.Linear(HIDDENL2, OUTPUTL)).to(device)
 
 
-#torchLt_optimizer = torchLt.Optimizer.Adam(torchLt_model.getParams())
-#pytorch_optimizer = torch.optim.Adam(pytorch_model.parameters())
+torchLt_optimizer = torchLt.Optimizer.Adam(torchLt_model.getParams())
+pytorch_optimizer = torch.optim.Adam(pytorch_model.parameters())
 
-torchLt_optimizer = torchLt.Optimizer.RMSProp(torchLt_model.getParams())
-pytorch_optimizer = torch.optim.RMSprop(pytorch_model.parameters())
+#torchLt_optimizer = torchLt.Optimizer.RMSProp(torchLt_model.getParams())
+#pytorch_optimizer = torch.optim.RMSprop(pytorch_model.parameters())
 
 #torchLt_optimizer = torchLt.Optimizer.Momentum(torchLt_model.getParams())
 #pytorch_optimizer = torch.optim.SGD(pytorch_model.parameters(), momentum=0.9)
@@ -81,7 +81,7 @@ def train_pytorch(X, y, criterion, optimizer, epochs=100):
             # Forward pass
             outputs = pytorch_model(X[i])
             loss = criterion(outputs, y[i])
-            total_loss += loss.item()
+            total_loss += loss 
             
             # Backward pass and optimization
             optimizer.zero_grad()

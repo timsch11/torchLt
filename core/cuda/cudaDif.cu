@@ -35,9 +35,6 @@ cudaError_t reluGrad(float* d_targetMemorySpace, float* d_vector, float* d_droot
     // check for errors
     cudaError_t err = cudaGetLastError();
 
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     return err;
 }
 
@@ -68,9 +65,6 @@ cudaError_t sigmoidGrad(float* d_targetMemorySpace, float* d_tensor, float* d_dr
     // check for errors
     cudaError_t err = cudaGetLastError();
 
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     return err;
 }
 
@@ -100,9 +94,6 @@ cudaError_t tanhGrad(float* d_targetMemorySpace, float* d_tensor, float* d_droot
 
     // check for errors
     cudaError_t err = cudaGetLastError();
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return err;
 }
@@ -135,9 +126,6 @@ cudaError_t l2LossGrad(float* d_targetMemorySpace, float* d_predicted, float* d_
     // check for errors
     cudaError_t err = cudaGetLastError();
 
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     return err;
 }
 
@@ -167,9 +155,6 @@ cudaError_t crossEntropyLossGrad(float* d_targetMemorySpace, float* d_predicted,
 
     // check for errors
     cudaError_t err = cudaGetLastError();
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return err;
 }
@@ -212,9 +197,6 @@ cudaError_t softmaxGrad(float* d_targetMemorySpace, float* d_softmax_output, flo
 
     // check for errors
     cudaError_t err = cudaGetLastError();
-
-    // synchronize before continuing with host code
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     return err;
 }

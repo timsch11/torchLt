@@ -124,7 +124,9 @@ Tensor::Tensor(std::pair<unsigned int, unsigned int> _shape, bool _track_gradien
 }
 
 // initalize leaf
-Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient) {
+Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient): 
+    d_value(_d_value), shape(_shape), gradientSet(false), track_gradient(_track_gradient), leaf(true), 
+    gradFunction(nullptr), d_funcArg1(nullptr), d_funcArg2(nullptr), d_funcArg3(nullptr) {
     // shape_x is #rows and shape_y is #columns, 0 = no actual row/column, vector has ONE column!!!
 
     // init cuBlas (if not done yet)
@@ -142,18 +144,6 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
         delete this;
         exit(EXIT_FAILURE);
     }
-            
-    this->d_value = _d_value;
-    this->shape = _shape;
-
-    this->gradientSet = false;
-    this->track_gradient = _track_gradient;
-
-    this->leaf = true;
-
-    this-> gradFunction = nullptr;
-    this->d_funcArg1 = nullptr;
-    this->d_funcArg2 = nullptr;
     
     if (_track_gradient) {
         this->d_gradient = reserveMemoryOnDevice(_shape.first * _shape.second);
@@ -167,7 +157,7 @@ Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bo
 Tensor::Tensor(float* _d_value, std::pair<unsigned int, unsigned int> _shape, bool _track_gradient, void (*_gradFunction)(Tensor*), Tensor* _d_funcArg1, std::pair<unsigned int, unsigned int> _shapeFuncArg1)
 : Tensor(_d_value, _shape, _track_gradient) {
     
-    this-> gradFunction = _gradFunction;
+    this->gradFunction = _gradFunction;
     this->d_funcArg1 = _d_funcArg1;
     this->shapeFuncArg1 = _shapeFuncArg1;
 

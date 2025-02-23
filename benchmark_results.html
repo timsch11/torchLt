@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    #vis.vega-embed {
+      width: 100%;
+      display: flex;
+    }
+
+    #vis.vega-embed details,
+    #vis.vega-embed details summary {
+      position: relative;
+    }
+  </style>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vega-lite@5.20.1"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+</head>
+<body>
+  <div id="vis"></div>
+  <script>
+    (function(vegaEmbed) {
+      var spec = {"config": {"view": {"continuousWidth": 300, "continuousHeight": 300}}, "vconcat": [{"concat": [{"data": {"name": "data-9e98bbacdba3e1f521dae343c8b56772"}, "mark": {"type": "line", "point": true}, "encoding": {"color": {"field": "Framework", "type": "nominal"}, "strokeDash": {"field": "Framework", "type": "nominal"}, "tooltip": [{"field": "Parameters (M)", "type": "quantitative"}, {"field": "Time (seconds)", "type": "quantitative"}, {"field": "Framework", "type": "nominal"}], "x": {"field": "Parameters (M)", "title": "Model Parameters (millions)", "type": "quantitative"}, "y": {"field": "Time (seconds)", "scale": {"type": "log"}, "type": "quantitative"}}, "height": 300, "name": "view_1", "title": "Adam Optimizer Performance", "width": 400}, {"data": {"name": "data-25c895b2ec921280ddbcaf17581e72c3"}, "mark": {"type": "line", "point": true}, "encoding": {"color": {"field": "Framework", "type": "nominal"}, "strokeDash": {"field": "Framework", "type": "nominal"}, "tooltip": [{"field": "Parameters (M)", "type": "quantitative"}, {"field": "Time (seconds)", "type": "quantitative"}, {"field": "Framework", "type": "nominal"}], "x": {"field": "Parameters (M)", "title": "Model Parameters (millions)", "type": "quantitative"}, "y": {"field": "Time (seconds)", "scale": {"type": "log"}, "type": "quantitative"}}, "height": 300, "name": "view_2", "title": "RMSProp Optimizer Performance", "width": 400}]}, {"concat": [{"data": {"name": "data-00ee8c40ffe0724e51c429d5c3efc523"}, "mark": {"type": "line", "point": true}, "encoding": {"color": {"field": "Framework", "type": "nominal"}, "strokeDash": {"field": "Framework", "type": "nominal"}, "tooltip": [{"field": "Parameters (M)", "type": "quantitative"}, {"field": "Time (seconds)", "type": "quantitative"}, {"field": "Framework", "type": "nominal"}], "x": {"field": "Parameters (M)", "title": "Model Parameters (millions)", "type": "quantitative"}, "y": {"field": "Time (seconds)", "scale": {"type": "log"}, "type": "quantitative"}}, "height": 300, "name": "view_3", "title": "Momentum Optimizer Performance", "width": 400}, {"data": {"name": "data-f54aeb058f0e791044e7adebd473c0c1"}, "mark": {"type": "line", "point": true}, "encoding": {"color": {"field": "Framework", "type": "nominal"}, "strokeDash": {"field": "Framework", "type": "nominal"}, "tooltip": [{"field": "Parameters (M)", "type": "quantitative"}, {"field": "Time (seconds)", "type": "quantitative"}, {"field": "Framework", "type": "nominal"}], "x": {"field": "Parameters (M)", "title": "Model Parameters (millions)", "type": "quantitative"}, "y": {"field": "Time (seconds)", "scale": {"type": "log"}, "type": "quantitative"}}, "height": 300, "name": "view_4", "title": "SGD Optimizer Performance", "width": 400}]}], "params": [{"name": "param_1", "select": {"type": "interval", "encodings": ["x", "y"]}, "bind": "scales", "views": ["view_1"]}, {"name": "param_2", "select": {"type": "interval", "encodings": ["x", "y"]}, "bind": "scales", "views": ["view_2"]}, {"name": "param_3", "select": {"type": "interval", "encodings": ["x", "y"]}, "bind": "scales", "views": ["view_3"]}, {"name": "param_4", "select": {"type": "interval", "encodings": ["x", "y"]}, "bind": "scales", "views": ["view_4"]}], "$schema": "https://vega.github.io/schema/vega-lite/v5.20.1.json", "datasets": {"data-9e98bbacdba3e1f521dae343c8b56772": [{"Parameters (M)": 25.0, "Time (seconds)": 2.648043711980184, "Framework": "PyTorch", "Optimizer": "Adam"}, {"Parameters (M)": 25.0, "Time (seconds)": 1.571096658706665, "Framework": "torchLt", "Optimizer": "Adam"}, {"Parameters (M)": 50.0, "Time (seconds)": 5.591061592102051, "Framework": "PyTorch", "Optimizer": "Adam"}, {"Parameters (M)": 50.0, "Time (seconds)": 2.9634607632954917, "Framework": "torchLt", "Optimizer": "Adam"}, {"Parameters (M)": 75.0, "Time (seconds)": 7.961314121882121, "Framework": "PyTorch", "Optimizer": "Adam"}, {"Parameters (M)": 75.0, "Time (seconds)": 4.1577842235565186, "Framework": "torchLt", "Optimizer": "Adam"}, {"Parameters (M)": 100.0, "Time (seconds)": 10.715036074320475, "Framework": "PyTorch", "Optimizer": "Adam"}, {"Parameters (M)": 100.0, "Time (seconds)": 5.456878821055095, "Framework": "torchLt", "Optimizer": "Adam"}], "data-25c895b2ec921280ddbcaf17581e72c3": [{"Parameters (M)": 25.0, "Time (seconds)": 1.962054173151652, "Framework": "PyTorch", "Optimizer": "RMSProp"}, {"Parameters (M)": 25.0, "Time (seconds)": 1.3021856149037678, "Framework": "torchLt", "Optimizer": "RMSProp"}, {"Parameters (M)": 50.0, "Time (seconds)": 4.174747943878174, "Framework": "PyTorch", "Optimizer": "RMSProp"}, {"Parameters (M)": 50.0, "Time (seconds)": 2.3287853399912515, "Framework": "torchLt", "Optimizer": "RMSProp"}, {"Parameters (M)": 75.0, "Time (seconds)": 5.97416885693868, "Framework": "PyTorch", "Optimizer": "RMSProp"}, {"Parameters (M)": 75.0, "Time (seconds)": 3.4099918206532798, "Framework": "torchLt", "Optimizer": "RMSProp"}, {"Parameters (M)": 100.0, "Time (seconds)": 8.039656718571981, "Framework": "PyTorch", "Optimizer": "RMSProp"}, {"Parameters (M)": 100.0, "Time (seconds)": 4.402793884277344, "Framework": "torchLt", "Optimizer": "RMSProp"}], "data-00ee8c40ffe0724e51c429d5c3efc523": [{"Parameters (M)": 25.0, "Time (seconds)": 1.3134513696034749, "Framework": "PyTorch", "Optimizer": "Momentum"}, {"Parameters (M)": 25.0, "Time (seconds)": 1.2971810499827068, "Framework": "torchLt", "Optimizer": "Momentum"}, {"Parameters (M)": 50.0, "Time (seconds)": 2.6943868001302085, "Framework": "PyTorch", "Optimizer": "Momentum"}, {"Parameters (M)": 50.0, "Time (seconds)": 2.335458596547445, "Framework": "torchLt", "Optimizer": "Momentum"}, {"Parameters (M)": 75.0, "Time (seconds)": 3.9535348415374756, "Framework": "PyTorch", "Optimizer": "Momentum"}, {"Parameters (M)": 75.0, "Time (seconds)": 3.380743900934855, "Framework": "torchLt", "Optimizer": "Momentum"}, {"Parameters (M)": 100.0, "Time (seconds)": 5.330044190088908, "Framework": "PyTorch", "Optimizer": "Momentum"}, {"Parameters (M)": 100.0, "Time (seconds)": 4.560383876164754, "Framework": "torchLt", "Optimizer": "Momentum"}], "data-f54aeb058f0e791044e7adebd473c0c1": [{"Parameters (M)": 25.0, "Time (seconds)": 0.8437676429748535, "Framework": "PyTorch", "Optimizer": "SGD"}, {"Parameters (M)": 25.0, "Time (seconds)": 1.0349419911702473, "Framework": "torchLt", "Optimizer": "SGD"}, {"Parameters (M)": 50.0, "Time (seconds)": 1.3156144618988037, "Framework": "PyTorch", "Optimizer": "SGD"}, {"Parameters (M)": 50.0, "Time (seconds)": 1.8834304809570312, "Framework": "torchLt", "Optimizer": "SGD"}, {"Parameters (M)": 75.0, "Time (seconds)": 1.9490307172139485, "Framework": "PyTorch", "Optimizer": "SGD"}, {"Parameters (M)": 75.0, "Time (seconds)": 2.5733420848846436, "Framework": "torchLt", "Optimizer": "SGD"}, {"Parameters (M)": 100.0, "Time (seconds)": 2.5928123792012534, "Framework": "PyTorch", "Optimizer": "SGD"}, {"Parameters (M)": 100.0, "Time (seconds)": 3.299860874811808, "Framework": "torchLt", "Optimizer": "SGD"}]}};
+      var embedOpt = {"mode": "vega-lite"};
+
+      function showError(el, error){
+          el.innerHTML = ('<div style="color:red;">'
+                          + '<p>JavaScript Error: ' + error.message + '</p>'
+                          + "<p>This usually means there's a typo in your chart specification. "
+                          + "See the javascript console for the full traceback.</p>"
+                          + '</div>');
+          throw error;
+      }
+      const el = document.getElementById('vis');
+      vegaEmbed("#vis", spec, embedOpt)
+        .catch(error => showError(el, error));
+    })(vegaEmbed);
+
+  </script>
+</body>
+</html>
