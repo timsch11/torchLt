@@ -97,7 +97,7 @@ for i in range(30):
 
 ## Performance Benchmarks
 
-![grafik](https://github.com/user-attachments/assets/c3c6c609-1389-4530-80b3-09dc57141909)
+![grafik](https://github.com/user-attachments/assets/b97f5602-79dc-40a1-963c-4e0b7eb9d249)
 
 Performance differed between optimizers: torchLt outperformed pytorch by almost 100% for Adam optimizer (and by a less but still significant portion for RMSProp and Momentum), however, pytorch training was faster with Stochastic Gradient Descent.
 
