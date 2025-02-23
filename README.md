@@ -1,30 +1,10 @@
-# cuTensor - A CUDA-Accelerated Neural Network Library
+# torchLt - A CUDA-Accelerated Neural Network Library
 
-cuTensor is a high-performance neural network library that leverages CUDA for GPU acceleration. It provides a Python interface while maintaining the computational efficiency of CUDA C++.
+torchLt is a high-performance neural network library that leverages CUDA for GPU acceleration. Its main objective is to be a fast neural network framework that outperforms other libraries like pytorch in many standard use cases.
 
 ## Overview
 
-The library implements a tensor-based computational framework supporting automatic differentiation and various neural network operations. It's designed for both educational purposes and performance demonstrations of GPU-accelerated machine learning.
-
-## Project Structure
-
-### Core CUDA Components (`/core/`)
-- `Tensor.h/cu`: Core tensor implementation with GPU support
-- `Factory.h/cu`: Factory methods for tensor creation
-- `cuda/`: CUDA kernel implementations
-    - `cudaNN.cuh/cu`: Neural network operations
-    - `cudaMath.cuh/cu`: Mathematical operations
-    - `cudaMem.cuh/cu`: Memory management
-    - `cudaDif.cuh/cu`: Automatic differentiation 
-
-### Python Interface
-- `wrapper.pyx`: Cython wrapper bridging C++ and Python
-- `__init__.py`: Python API interface
-- `setup.py`: Build configuration for Python extension
-
-### Examples (`/example/`)
-- `nn1.py`: Simple regression example
-- `nn2.py`: Performance benchmark example 
+The framework's core consists of a Tensor library written in pure cuda c++ that supports automatic differentiation and various neural network operations. A seperate optimization library implements many state of the art optimizers for training neural networks. The cython wrapper utilizes the two mentioned sub-libraries to build and train efficient and flexible neural networks from python.
 
 ## Features
 
@@ -34,6 +14,34 @@ The library implements a tensor-based computational framework supporting automat
 - Python-friendly API
 - Xavier and Kaiming He weight initialization
 - Multiple optimization algorithms
+
+## Project Structure
+
+### Core CUDA Components (`/core/`)
+- `Tensor.h/cu`: Core tensor implementation with GPU support
+- `Factory.h/cu`: Factory methods for tensor creation
+- `cuda/`: CUDA kernel implementations
+    - `cudaNN.cuh/cu`: Neural network operations
+    - `cudaMath.cuh/cu`: Basic math operations
+    - `cudaMem.cuh/cu`: Memory management utils
+    - `cudaDif.cuh/cu`: Automatic differentiation
+    - `util.cuh/cu`: Error handling and other utils
+  - `optimization/`: CUDA kernel implementations
+    - `MomentumWrapper.cuh/cu`: Momentum Optimizer
+    - `RMSPropWrapper.cuh/cu`: RMSProp Optimizer
+    - `AdamWrapper.cuh/cu`: Adam Optimizer
+    - `weightUpdate.cuh/cu`: Kernels used by Optimizers
+
+### Cython wrapper
+- `setup.py`: Build configuration for Python extension
+- `wrapper.pyx`: Cython wrapper bridging C++ and Python: Implements the neural network framework with calls into the Cuda C++ libraries
+
+### Python Interface: torchLt
+The following parts are mainly used for IDE support, the actual functionality is imported from the cython wrapper.
+- `__init__.py`: Neccessary Cuda configurations and Tensor API (with IDE descriptions)
+- `Model.py`: Model API (with IDE descriptions)
+- `Layer.py`: Layer API (with IDE descriptions)
+- `Optimizer.py`: Optimizer API (with IDE descriptions)
 
 ## Installation
 
@@ -64,47 +72,49 @@ Build Python extension (if you want to use the python API):
 ## Usage Example
 
 ```python
-from Tensor import PyTensor
+import torchLt
+import torchLt.Layer
+import torchLt.Model
+import torchLt.Optimizer
 
 
-inp = PyTensor([1.2, 3.3], (2, 1))
+model = torchLt.Model.Sequential(torchLt.Layer.Linear(1, 10), torchLt.Layer.Relu(), torchLt.Layer.Linear(10, 10), torchLt.Layer.Relu(), torchLt.Layer.Linear(10, 1))
 
-w0 = PyTensor(shape=(32, 2), _track_gradient=True, kaimingHeInit=True)
-b0 = PyTensor([[0] * 32], (32, 1), _track_gradient=True)
-    
-w1 = PyTensor(shape=(4, 32), _track_gradient=True, kaimingHeInit=True)
-b1 = PyTensor([[0] * 4], (4, 1), _track_gradient=True)
+inp = torchLt.PyTensor([1], shape=(1, 1))
+label = torchLt.PyTensor([100000], shape=(1, 1))
 
-labels = PyTensor([1, 2, 3, 4], (4, 1))
+optimizer = torchLt.Optimizer.Momentum(model.getParams(), lr=0.01, beta=0.5)
 
-# example neural network layers
-a0 = ((w0 @ inp) + b0).tanh()
-a1 = ((w1 @ a0) + b1).relu()
+for i in range(30):
+    y = model(inp)
+    loss = y.l2(label)
+    loss.printValue()
+    loss.backward()
 
-loss = a1.l2(labels)
-
-loss.backward()
-
-w0.sgd(lr=0.01)
-b0.sgd(lr=0.01)
-w1.sgd(lr=0.01)
-b1.sgd(lr=0.01)
-
+    optimizer.asyncstep()
 
 ```
 
 ## Performance Benchmarks
 
-The `nn2.py` example demonstrates the library's performance with a large neural network:
-- ~100 million parameters
-- GPU-accelerated forward and backward passes
+![grafik](https://github.com/user-attachments/assets/c3c6c609-1389-4530-80b3-09dc57141909)
+
+Performance differed between optimizers: torchLt outperformed pytorch by almost 100% for Adam optimizer (and by a less but still significant portion for RMSProp and Momentum), however, pytorch training was faster with Stochastic Gradient Descent.
+
+Proceeding: Each framework trained an equal neural network with sizes from 25 to 100 million parameters with own synthetically generated data. Result is averaged training time from three seperate trainings. Benchmark was performed for different optimizers.
+
+Note: To be fair I have to mention that this library does not yet support mini batches yet, therefore benchmarks were conducted without mini batches (=batch size of 1). This is a marginal disadvantage for pytorch which requires zeroing the gradient after each batch. However, this should not significantly change the benchmark results.
+
+Code used for the benchmark: `benchmark-comparison.py`
+
+PyTorch version: 2.6.0 with Cuda 12.6
+
+## Roadmap
+
+- Mini batch support
+- Optimize stream usage during backpropagation and optimization
 
 ## Developed on:
 - Windows 10
 - AMD Ryzen 5 3600 x64
 - NVIDIA RTX 2070 Super with CUDA 12.6
-
-## Acknowledgments
-
-- NVIDIA CUDA Team
-- Python and Cython communities
