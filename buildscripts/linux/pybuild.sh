@@ -57,9 +57,7 @@ nvcc -lib bin/ubuntu_amd_x64/pybuild/util.obj bin/ubuntu_amd_x64/pybuild/factory
 #nvcc --shared bin/ubuntu_amd_x64/pybuild/util.obj bin/ubuntu_amd_x64/pybuild/factory.obj bin/ubuntu_amd_x64/pybuild/tensor.obj bin/ubuntu_amd_x64/pybuild/cudadif.obj bin/ubuntu_amd_x64/pybuild/cudamath.obj bin/ubuntu_amd_x64/pybuild/cudamem.obj bin/ubuntu_amd_x64/pybuild/cudann.obj bin/ubuntu_amd_x64/pybuild/momentumwrapper.obj bin/ubuntu_amd_x64/pybuild/rmspropwrapper.obj bin/ubuntu_amd_x64/pybuild/weightupdate.obj bin/ubuntu_amd_x64/pybuild/adamwrapper.obj -Xcompiler "-fPIC" -o bin/ubuntu_amd_x64/pylib/libTensor.so
 nvcc --shared bin/ubuntu_amd_x64/pybuild/util.obj bin/ubuntu_amd_x64/pybuild/factory.obj bin/ubuntu_amd_x64/pybuild/tensor.obj bin/ubuntu_amd_x64/pybuild/cudadif.obj bin/ubuntu_amd_x64/pybuild/cudamath.obj bin/ubuntu_amd_x64/pybuild/cudamem.obj bin/ubuntu_amd_x64/pybuild/cudann.obj bin/ubuntu_amd_x64/pybuild/momentumwrapper.obj bin/ubuntu_amd_x64/pybuild/rmspropwrapper.obj bin/ubuntu_amd_x64/pybuild/weightupdate.obj bin/ubuntu_amd_x64/pybuild/adamwrapper.obj -Xcompiler "-fPIC" -o bin/ubuntu_amd_x64/pylib/libTensor.so $ARCH_FLAGS -L"/usr/local/cuda-12.8/lib64" -lcudart -lcublas -lcublasLt
 
-pythonPath=$(python3 -c "import sys; print(sys.executable)")
-
-$pythonPath setup.py build_ext --inplace
+venv/bin/python setup.py build_ext --inplace
 
 # go back to inital dir
 cd "$INITIAL_LOCATION"
