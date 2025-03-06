@@ -1,3 +1,15 @@
+import sys
+import os
+
+import torchLt.Model
+import torchLt.Model
+
+
+# Add the parent directory to sys.path
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, parent_dir)
+
+
 import torch
 import torchLt
 
@@ -26,8 +38,8 @@ torchLt_model = torchLt.Model.Sequential(torchLt.Layer.Linear(INPUTL, HIDDENL1),
 pytorch_model = torch.nn.Sequential(torch.nn.Linear(INPUTL, HIDDENL1), torch.nn.Tanh(), torch.nn.Linear(HIDDENL1, HIDDENL2), torch.nn.Tanh(), torch.nn.Linear(HIDDENL2, OUTPUTL)).to(device)
 
 
-torchLt_optimizer = torchLt.Optimizer.Adam(torchLt_model.getParams())
-pytorch_optimizer = torch.optim.Adam(pytorch_model.parameters())
+#torchLt_optimizer = torchLt.Optimizer.Adam(torchLt_model.getParams())
+#pytorch_optimizer = torch.optim.Adam(pytorch_model.parameters())
 
 #torchLt_optimizer = torchLt.Optimizer.RMSProp(torchLt_model.getParams())
 #pytorch_optimizer = torch.optim.RMSprop(pytorch_model.parameters())
@@ -35,8 +47,8 @@ pytorch_optimizer = torch.optim.Adam(pytorch_model.parameters())
 #torchLt_optimizer = torchLt.Optimizer.Momentum(torchLt_model.getParams())
 #pytorch_optimizer = torch.optim.SGD(pytorch_model.parameters(), momentum=0.9)
 
-#torchLt_optimizer = torchLt.Optimizer.SGD(torchLt_model.getParams())
-#pytorch_optimizer = torch.optim.SGD(pytorch_model.parameters())
+torchLt_optimizer = torchLt.Optimizer.SGD(torchLt_model.getParams())
+pytorch_optimizer = torch.optim.SGD(pytorch_model.parameters())
 
 
 
