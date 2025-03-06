@@ -2,6 +2,10 @@
 # Save initial location
 INITIAL_LOCATION=$(pwd)
 
+cd "$(dirname "$0")"
+cd ..
+cd ..
+
 # Make bin directory
 mkdir -p bin/ubuntu_amd_x64/pylib
 mkdir -p bin/ubuntu_amd_x64/pybuild
@@ -58,4 +62,4 @@ pythonPath=$(python3 -c "import sys; print(sys.executable)")
 $pythonPath setup.py build_ext --inplace
 
 # go back to inital dir
-#cd "$INITIAL_LOCATION"
+cd "$INITIAL_LOCATION"

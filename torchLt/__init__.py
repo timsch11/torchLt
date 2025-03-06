@@ -9,7 +9,7 @@ from sys import platform
 project_root = Path(__file__).parent.parent
 
 
-lib_path = project_root / "bin" / "ubuntu_amd_x64" / "pylib"
+#lib_path = project_root / "bin" / "ubuntu_amd_x64" / "pylib"
 core_path = project_root / "core"
 
 if platform == "linux" or platform == "linux2":
@@ -28,10 +28,10 @@ if platform == "linux" or platform == "linux2":
     ctypes.cdll.LoadLibrary(os.path.join(CUDA_HOME, "lib64", "libcublasLt.so"))
 
     # Add the library paths to the dynamic linker search path
-    if lib_path.exists():
-        ctypes.cdll.LoadLibrary(str(lib_path / "libTensor.so"))
-    elif core_path.exists():
-        ctypes.cdll.LoadLibrary(str(core_path / "libTensor.so"))
+    if Path(lib_path).exists():
+        ctypes.cdll.LoadLibrary(os.path.join(lib_path, "libTensor.so"))
+    elif Path(core_path).exists():
+        ctypes.cdll.LoadLibrary(os.path.join(core_path, "libTensor.so"))
     else:
         raise ImportError("Could not find libTensor.so in expected locations")
 
