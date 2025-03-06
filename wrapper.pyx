@@ -23,21 +23,21 @@ cdef extern from "Factory.h":
 
 
 # Import from Momentum optimizer
-cdef extern from "optimization\MomentumWrapper.h":
+cdef extern from "optimization/MomentumWrapper.h":
     cdef cppclass MomentumWrapper:
         MomentumWrapper(Tensor &tensor, float lr, float beta)
         void step(bool asynchronous)
 
 
 # Import from RMSProp optimizer
-cdef extern from "optimization\RMSPropWrapper.h":
+cdef extern from "optimization/RMSPropWrapper.h":
     cdef cppclass RMSPropWrapper:
         RMSPropWrapper(Tensor &tensor, float lr, float alpha, float eps)
         void step(bool asynchronous)
 
 
 # Import from Adam optimizer
-cdef extern from "optimization\AdamWrapper.h":
+cdef extern from "optimization/AdamWrapper.h":
     cdef cppclass AdamWrapper:
         AdamWrapper(Tensor &tensor, float lr, float alpha, float momentum, float eps)
         void step(bool asynchronous)

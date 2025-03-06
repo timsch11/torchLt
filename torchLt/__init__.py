@@ -1,17 +1,53 @@
 import os
-import sys
-
+import ctypes
 from pathlib import Path
 import numpy as np
+from sys import platform
 
 
-# Add DLL search paths
-cuda_path = Path(os.environ.get('CUDA_PATH'))
-project_root = Path(__file__).parent
+# Set up the path to the library directory
+project_root = Path(__file__).parent.parent
 
-if sys.platform == 'win32':
+
+#lib_path = project_root / "bin" / "ubuntu_amd_x64" / "pylib"
+core_path = project_root / "core"
+
+if platform == "linux" or platform == "linux2":
+    lib_path = os.path.join(project_root, "bin", "ubuntu_amd_x64", "pylib")
+
+    # Check for CUDA in standard Linux locations
+    CUDA_HOME = Path("/usr/local/cuda")
+    if not CUDA_HOME.exists():
+        CUDA_HOME = Path("/opt/cuda")
+    if not CUDA_HOME.exists():
+        CUDA_HOME = Path(os.environ.get('CUDA_HOME', ''))
+
+
+    ctypes.cdll.LoadLibrary(os.path.join(CUDA_HOME, "lib64", "libcudart.so"))
+    ctypes.cdll.LoadLibrary(os.path.join(CUDA_HOME, "lib64", "libcublas.so"))
+    ctypes.cdll.LoadLibrary(os.path.join(CUDA_HOME, "lib64", "libcublasLt.so"))
+
+    # Add the library paths to the dynamic linker search path
+    if Path(lib_path).exists():
+        ctypes.cdll.LoadLibrary(os.path.join(lib_path, "libTensor.so"))
+    elif Path(core_path).exists():
+        ctypes.cdll.LoadLibrary(os.path.join(core_path, "libTensor.so"))
+    else:
+        raise ImportError("Could not find libTensor.so in expected locations")
+
+elif platform == "win32":
+    lib_path = os.path.join(project_root, "bin", "win_amd_x64", "pylib")
+
+    # fetch cuda path from env variable
+    cuda_path = Path(os.environ.get('CUDA_PATH'))
+
+    # add dlls
     os.add_dll_directory(str(cuda_path / 'bin'))
     os.add_dll_directory(str(project_root))
+
+else: 
+    print("Error: So far only windows and most linux distros are supported")
+    exit()
 
 
 """interface for PyTensor API"""
