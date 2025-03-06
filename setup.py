@@ -59,7 +59,7 @@ elif platform == "win32":
                 ],
                 library_dirs=[
                     os.path.join(CUDA_HOME, 'lib', 'x64'),
-                    os.path.join(PROJECT_ROOT, 'bin', 'pylib'),
+                    os.path.join(PROJECT_ROOT, 'bin', 'win_amd_x64', 'pylib'),
                     os.path.join(PROJECT_ROOT, 'core')
                 ]
                 )

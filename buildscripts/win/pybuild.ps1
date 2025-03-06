@@ -19,23 +19,23 @@ Set-Location ..
 # Compile source files to objects
 $INCLUDE_PATH = "/core"
 
-nvcc -c core/cuda/util.cu -o bin/pybuild/util.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
-nvcc -c core/Factory.cu -o bin/pybuild/factory.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
-nvcc -c core/Tensor.cu -o bin/pybuild/tensor.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
-nvcc -c core/cuda/cudaDif.cu -o bin/pybuild/cudadif.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
-nvcc -c core/cuda/cudaMath.cu -o bin/pybuild/cudamath.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
-nvcc -c core/cuda/cudaMem.cu -o bin/pybuild/cudamem.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
-nvcc -c core/cuda/cudaNN.cu -o bin/pybuild/cudann.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
-nvcc -c core/optimization/MomentumWrapper.cu -o bin/pybuild/momentumwrapper.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
-nvcc -c core/optimization/weightUpdate.cu -o bin/pybuild/weightupdate.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
-nvcc -c core/optimization/RMSPropWrapper.cu -o bin/pybuild/rmspropwrapper.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
-nvcc -c core/optimization/AdamWrapper.cu -o bin/pybuild/adamwrapper.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/cuda/util.cu -o bin/win_amd_x64/pybuild/util.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/Factory.cu -o bin/win_amd_x64/pybuild/factory.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/Tensor.cu -o bin/win_amd_x64/pybuild/tensor.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/cuda/cudaDif.cu -o bin/win_amd_x64/pybuild/cudadif.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/cuda/cudaMath.cu -o bin/win_amd_x64/pybuild/cudamath.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/cuda/cudaMem.cu -o bin/win_amd_x64/pybuild/cudamem.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/cuda/cudaNN.cu -o bin/win_amd_x64/pybuild/cudann.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/optimization/MomentumWrapper.cu -o bin/win_amd_x64/pybuild/momentumwrapper.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/optimization/weightUpdate.cu -o bin/win_amd_x64/pybuild/weightupdate.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/optimization/RMSPropWrapper.cu -o bin/win_amd_x64/pybuild/rmspropwrapper.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
+nvcc -c core/optimization/AdamWrapper.cu -o bin/win_amd_x64/pybuild/adamwrapper.obj -Xcompiler "/MD" -I"$INCLUDE_PATH"
 
 # Create static library
-nvcc -lib bin/pybuild/util.obj bin/pybuild/factory.obj bin/pybuild/tensor.obj bin/pybuild/cudadif.obj bin/pybuild/cudamath.obj bin/pybuild/cudamem.obj bin/pybuild/cudann.obj bin/pybuild/momentumwrapper.obj bin/pybuild/rmspropwrapper.obj bin/pybuild/weightupdate.obj bin/pybuild/adamwrapper.obj -o bin/pylib/Tensor.lib
+nvcc -lib bin/win_amd_x64/pybuild/util.obj bin/win_amd_x64/pybuild/factory.obj bin/win_amd_x64/pybuild/tensor.obj bin/win_amd_x64/pybuild/cudadif.obj bin/win_amd_x64/pybuild/cudamath.obj bin/win_amd_x64/pybuild/cudamem.obj bin/win_amd_x64/pybuild/cudann.obj bin/win_amd_x64/pybuild/momentumwrapper.obj bin/win_amd_x64/pybuild/rmspropwrapper.obj bin/win_amd_x64/pybuild/weightupdate.obj bin/win_amd_x64/pybuild/adamwrapper.obj -o bin/win_amd_x64/pylib/Tensor.lib
 
 # Create dll
-nvcc -lib bin/pybuild/util.obj bin/pybuild/factory.obj bin/pybuild/tensor.obj bin/pybuild/cudadif.obj bin/pybuild/cudamath.obj bin/pybuild/cudamem.obj bin/pybuild/cudann.obj bin/pybuild/momentumwrapper.obj bin/pybuild/rmspropwrapper.obj bin/pybuild/weightupdate.obj bin/pybuild/adamwrapper.obj -Xcompiler "/MD" -o bin/pylib/Tensor.dll
+nvcc -lib bin/win_amd_x64/pybuild/util.obj bin/win_amd_x64/pybuild/factory.obj bin/win_amd_x64/pybuild/tensor.obj bin/win_amd_x64/pybuild/cudadif.obj bin/win_amd_x64/pybuild/cudamath.obj bin/win_amd_x64/pybuild/cudamem.obj bin/win_amd_x64/pybuild/cudann.obj bin/win_amd_x64/pybuild/momentumwrapper.obj bin/win_amd_x64/pybuild/rmspropwrapper.obj bin/win_amd_x64/pybuild/weightupdate.obj bin/win_amd_x64/pybuild/adamwrapper.obj -Xcompiler "/MD" -o bin/win_amd_x64/pylib/Tensor.dll
 
 $pythonPath = & python -c "import sys; print(sys.executable)"
 
